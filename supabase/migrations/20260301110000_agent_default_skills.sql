@@ -1,5 +1,4 @@
--- Default agents with appropriate skills in config.
--- Research: web-search, synthesis, docs. Planner: breakdown, timeline, api. Writer: docs, copy, readme.
+-- Default agents: Planner, Writer, Researcher, Developer with appropriate skills.
 
 create or replace function public.handle_new_user()
 returns trigger
@@ -25,11 +24,10 @@ begin
 
   insert into public.agents (workspace_id, name, slug, backend, model, config)
   values
-    (_workspace_id, 'Research Agent', 'research', 'codex', 'gpt-5', '{"skills": ["web-search", "synthesis", "docs"]}'::jsonb),
     (_workspace_id, 'Planner Agent', 'planner', 'codex', 'gpt-5-codex', '{"skills": ["breakdown", "timeline", "api"]}'::jsonb),
     (_workspace_id, 'Writer Agent', 'writer', 'claude', 'claude-3-7-sonnet', '{"skills": ["docs", "copy", "readme"]}'::jsonb),
-    (_workspace_id, 'Image Agent', 'image', 'claude', 'claude-3-5-sonnet', '{"skills": []}'::jsonb),
-    (_workspace_id, 'Finance Agent', 'finance', 'codex', 'gpt-5-mini', '{"skills": []}'::jsonb);
+    (_workspace_id, 'Researcher Agent', 'researcher', 'codex', 'gpt-5', '{"skills": ["web-search", "synthesis", "docs"]}'::jsonb),
+    (_workspace_id, 'Developer Agent', 'developer', 'codex', 'gpt-5-codex', '{"skills": ["api", "github", "docs", "ui"]}'::jsonb);
 
   return new;
 end;

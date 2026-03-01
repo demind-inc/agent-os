@@ -12,7 +12,6 @@ AgentOS is a full-stack task management app for AI-assisted execution.
 - Task CRUD with unified status workflow:
   - `backlog`
   - `ai_working`
-  - `needs_human_input`
   - `in_review`
   - `done`
   - `failed`

@@ -7,7 +7,6 @@ import "./BoardView.scss";
 const COLUMNS: { key: TaskStatus; label: string; className?: string }[] = [
   { key: "backlog", label: "Backlog" },
   { key: "ai_working", label: "AI Working" },
-  { key: "needs_human_input", label: "Needs Human Input", className: "statusColumn--needsHuman" },
   { key: "in_review", label: "In Review" },
   { key: "done", label: "Done" },
   { key: "failed", label: "Failed" }

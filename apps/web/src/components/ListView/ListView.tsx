@@ -6,7 +6,6 @@ import "./ListView.scss";
 const STATUS_PILL_CLASS: Record<string, string> = {
   backlog: "listView__statusPill--muted",
   ai_working: "listView__statusPill--success",
-  needs_human_input: "listView__statusPill--warn",
   in_review: "listView__statusPill--muted",
   done: "listView__statusPill--muted",
   failed: "listView__statusPill--danger"
@@ -62,13 +61,15 @@ export function ListView({ tasks, projectName, onOpen, onRun }: ListViewProps) {
                   <button type="button" className="listView__btn" onClick={() => onOpen(task.id)}>
                     Open
                   </button>
-                  <button
-                    type="button"
-                    className="listView__btn listView__btn--primary"
-                    onClick={() => onRun(task.id)}
-                  >
-                    Run
-                  </button>
+                  {task.status === "backlog" && (
+                    <button
+                      type="button"
+                      className="listView__btn listView__btn--primary"
+                      onClick={() => onRun(task.id)}
+                    >
+                      Run
+                    </button>
+                  )}
                 </div>
               </td>
             </tr>

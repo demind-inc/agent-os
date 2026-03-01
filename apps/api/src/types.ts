@@ -1,7 +1,6 @@
 export type TaskStatus =
   | "backlog"
   | "ai_working"
-  | "needs_human_input"
   | "in_review"
   | "done"
   | "failed";

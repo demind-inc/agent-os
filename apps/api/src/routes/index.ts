@@ -2,6 +2,11 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { adminSupabase, assertWorkspaceMember, detectSkillsFromDescription, getUserFromBearer } from "../plugins/supabase.js";
 import { enqueueRun } from "../services/runner.js";
+import {
+  registerRunStream,
+  unregisterRunStream,
+  type RunStreamSender,
+} from "../services/run-stream-registry.js";
 
 const createTaskSchema = z.object({
   title: z.string().min(1),
@@ -12,7 +17,7 @@ const createTaskSchema = z.object({
 const updateTaskSchema = z.object({
   title: z.string().optional(),
   description: z.string().optional(),
-  status: z.enum(["backlog", "ai_working", "needs_human_input", "in_review", "done", "failed"]).optional(),
+  status: z.enum(["backlog", "ai_working", "in_review", "done", "failed"]).optional(),
   metadata: z.record(z.any()).optional()
 });
 
@@ -33,7 +38,12 @@ export async function registerRoutes(app: FastifyInstance) {
 
   app.addHook("preHandler", async (request, reply) => {
     if (request.url === "/health") return;
-    const user = await getUserFromBearer(request.headers.authorization);
+    const authHeader =
+      request.headers.authorization ??
+      (typeof (request.query as { token?: string })?.token === "string"
+        ? `Bearer ${(request.query as { token: string }).token}`
+        : undefined);
+    const user = await getUserFromBearer(authHeader);
     if (!user) {
       reply.status(401).send({ error: "Unauthorized" });
       return;
@@ -364,10 +374,17 @@ export async function registerRoutes(app: FastifyInstance) {
     const params = request.params as { taskId: string };
     const body = z.object({ agentId: z.string().optional(), model: z.string().optional() }).parse(request.body || {});
 
-    const { data: task } = await adminSupabase.from('tasks').select('project_id, projects(workspace_id)').eq('id', params.taskId).single();
+    const { data: task } = await adminSupabase
+      .from('tasks')
+      .select('status, project_id, projects(workspace_id)')
+      .eq('id', params.taskId)
+      .single();
     if (!task) return reply.status(404).send({ error: 'Task not found' });
     const workspaceId = (task as any).projects.workspace_id as string;
     await assertWorkspaceMember(user.id, workspaceId);
+    if (task.status !== 'backlog' && task.status !== 'in_review') {
+      return reply.status(400).send({ error: 'Task can only be run when in Backlog or In Review' });
+    }
 
     let agentId = body.agentId;
     if (!agentId) {
@@ -382,6 +399,7 @@ export async function registerRoutes(app: FastifyInstance) {
         task_id: params.taskId,
         agent_id: agentId,
         status: 'queued',
+        triggered_by_user_id: user.id,
         input_snapshot: { requestedModel: body.model || null }
       })
       .select('*')
@@ -390,6 +408,59 @@ export async function registerRoutes(app: FastifyInstance) {
     if (error || !run) return reply.status(400).send({ error: error?.message || 'Failed to create run' });
     await enqueueRun(run.id);
     return run;
+  });
+
+  app.get('/runs/:runId/stream', { websocket: true }, (socket, request) => {
+    const user = (request as any).user;
+    const params = request.params as { runId: string };
+    const runId = params.runId;
+
+    void (async () => {
+      const { data: run } = await adminSupabase
+        .from('agent_runs')
+        .select('id, task_id')
+        .eq('id', runId)
+        .single();
+      if (!run) {
+        socket.close(1008, 'Run not found');
+        return;
+      }
+      const { data: task } = await adminSupabase
+        .from('tasks')
+        .select('project_id, projects(workspace_id)')
+        .eq('id', run.task_id)
+        .single();
+      if (!task) {
+        socket.close(1008, 'Run task not found');
+        return;
+      }
+      const workspaceId = (task as any).projects?.workspace_id as string | undefined;
+      if (!workspaceId) {
+        socket.close(1008, 'Task project not found');
+        return;
+      }
+      try {
+        await assertWorkspaceMember(user.id, workspaceId);
+      } catch {
+        socket.close(1008, 'Access denied');
+        return;
+      }
+
+      const send: RunStreamSender = (event, data) => {
+        try {
+          if (socket.readyState !== 1 /* OPEN */) return;
+          socket.send(JSON.stringify({ event, data }));
+          if (event === 'done') {
+            socket.close();
+            unregisterRunStream(runId, send);
+          }
+        } catch (_) {
+          unregisterRunStream(runId, send);
+        }
+      };
+      registerRunStream(runId, send);
+      socket.on('close', () => unregisterRunStream(runId, send));
+    })();
   });
 
   app.get('/tasks/:taskId/logs', async (request, reply) => {
@@ -646,6 +717,18 @@ export async function registerRoutes(app: FastifyInstance) {
     return data;
   });
 
+  const PROVIDER_API_KEYS_KEY = 'provider_api_keys';
+
+  /** Mask provider API keys so the client never receives raw secrets. */
+  function maskProviderApiKeys(value: unknown): { anthropic?: { configured: boolean }; openai?: { configured: boolean } } {
+    if (!value || typeof value !== 'object') return {};
+    const v = value as Record<string, unknown>;
+    return {
+      ...(v.anthropic != null && String(v.anthropic).length > 0 && { anthropic: { configured: true } }),
+      ...(v.openai != null && String(v.openai).length > 0 && { openai: { configured: true } }),
+    };
+  }
+
   app.get('/user/settings', async (request, reply) => {
     const user = (request as any).user;
     const query = request.query as { key?: string };
@@ -653,19 +736,44 @@ export async function registerRoutes(app: FastifyInstance) {
     if (query.key) q = q.eq('key', query.key);
     const { data, error } = await q;
     if (error) return reply.status(400).send({ error: error.message });
-    if (query.key) return { key: query.key, value: (data?.[0] as { value?: unknown })?.value ?? null };
-    const settings = Object.fromEntries((data || []).map((row: { key: string; value: unknown }) => [row.key, row.value]));
+    if (query.key) {
+      const row = data?.[0] as { key: string; value?: unknown } | undefined;
+      let value = row?.value ?? null;
+      if (query.key === PROVIDER_API_KEYS_KEY && value != null) {
+        value = maskProviderApiKeys(value);
+      }
+      return { key: query.key, value };
+    }
+    const settings = Object.fromEntries(
+      (data || []).map((row: { key: string; value: unknown }) => {
+        let val = row.value;
+        if (row.key === PROVIDER_API_KEYS_KEY) val = maskProviderApiKeys(val);
+        return [row.key, val];
+      })
+    );
     return { settings };
   });
 
   app.patch('/user/settings', async (request, reply) => {
     const user = (request as any).user;
     const body = z.object({ key: z.string().min(1), value: z.any() }).parse(request.body);
+    let value = body.value;
+    if (body.key === PROVIDER_API_KEYS_KEY && value && typeof value === 'object') {
+      const { data: existing } = await adminSupabase
+        .from('user_settings')
+        .select('value')
+        .eq('user_id', user.id)
+        .eq('key', PROVIDER_API_KEYS_KEY)
+        .maybeSingle();
+      const existingObj = (existing?.value as Record<string, unknown>) ?? {};
+      value = { ...existingObj, ...value };
+    }
     const { error } = await adminSupabase.from('user_settings').upsert(
-      { user_id: user.id, key: body.key, value: body.value },
+      { user_id: user.id, key: body.key, value },
       { onConflict: 'user_id,key' }
     );
     if (error) return reply.status(400).send({ error: error.message });
-    return { key: body.key, value: body.value };
+    const outValue = body.key === PROVIDER_API_KEYS_KEY ? maskProviderApiKeys(value) : value;
+    return { key: body.key, value: outValue };
   });
 }

@@ -1,6 +1,7 @@
 export { SettingsSidebar } from "./settings-sidebar";
 export { SettingsHeader } from "./settings-header";
 export { ProfileTab } from "./profile-tab";
+export { ApiKeysTab } from "./api-keys-tab";
 export { WorkspaceTab } from "./workspace-tab";
 export { TeamTab } from "./team-tab";
 export { AgentsTab } from "./agents-tab";

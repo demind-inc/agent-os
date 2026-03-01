@@ -1,15 +1,15 @@
 "use client";
 
-import type { AgentRun } from "@/types/domain";
-import type { Task } from "@/types/domain";
+import type { Agent, AgentRun, Task } from "@/types/domain";
 import "./ActiveAgentsSidebar.scss";
 
 type ActiveAgentsSidebarProps = {
   runs: AgentRun[];
   tasks: Task[];
+  agents?: Agent[];
 };
 
-export function ActiveAgentsSidebar({ runs, tasks }: ActiveAgentsSidebarProps) {
+export function ActiveAgentsSidebar({ runs, tasks, agents = [] }: ActiveAgentsSidebarProps) {
   const activeRuns = runs.filter((run) =>
     ["queued", "running", "awaiting_input"].includes(run.status)
   );
@@ -21,15 +21,19 @@ export function ActiveAgentsSidebar({ runs, tasks }: ActiveAgentsSidebarProps) {
         {activeRuns.length === 0 ? (
           <span className="activeAgentsSidebar__taskTitle">No active runs</span>
         ) : (
-          activeRuns.map((run) => (
+          activeRuns.map((run) => {
+            const agent = agents.find((a) => a.id === run.agent_id);
+            const agentName = agent?.name ?? "Agent";
+            return (
             <div key={run.id} className="activeAgentsSidebar__item">
-              <div className="activeAgentsSidebar__agentName">{run.agent_id}</div>
+              <div className="activeAgentsSidebar__agentName">{agentName}</div>
               <div className="activeAgentsSidebar__taskTitle">
                 {tasks.find((t) => t.id === run.task_id)?.title ?? "Unknown task"}
               </div>
               <span className="activeAgentsSidebar__status">{run.status}</span>
             </div>
-          ))
+            );
+          })
         )}
       </div>
     </aside>

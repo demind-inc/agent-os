@@ -21,7 +21,14 @@ type TaskLog = {
   created_at: string;
   payload: Record<string, unknown> | null;
 };
-type Artifact = { id: string; type: string; title: string; url: string | null };
+type Artifact = {
+  id: string;
+  type: string;
+  title: string;
+  url: string | null;
+  created_at?: string;
+  metadata?: Record<string, unknown>;
+};
 
 export default function AppBoardPage() {
   const router = useRouter();
@@ -40,20 +47,45 @@ export default function AppBoardPage() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [selectedAgentId, setSelectedAgentId] = useState("");
   const [suggestedSkills, setSuggestedSkills] = useState<string[]>([]);
+  const [isCreatingTask, setIsCreatingTask] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState<string | null>(null);
+  const [providerApiKeysConfigured, setProviderApiKeysConfigured] = useState<{
+    anthropic?: boolean;
+    openai?: boolean;
+  }>({});
+  /** Run id from POST /run response so we connect to stream before load() completes. */
+  const [pendingStreamRunId, setPendingStreamRunId] = useState<string | null>(
+    null
+  );
+  const [pendingStreamTaskId, setPendingStreamTaskId] = useState<string | null>(
+    null
+  );
 
   const projectId = useMemo(
-    () => (typeof window !== "undefined" ? localStorage.getItem("agentos_project_id") || "" : ""),
+    () =>
+      typeof window !== "undefined"
+        ? localStorage.getItem("agentos_project_id") || ""
+        : "",
     []
   );
   const workspaceId = useMemo(
     () =>
-      typeof window !== "undefined" ? localStorage.getItem("agentos_workspace_id") || "" : "",
+      typeof window !== "undefined"
+        ? localStorage.getItem("agentos_workspace_id") || ""
+        : "",
     []
   );
 
   async function load() {
     if (!projectId || !workspaceId) return;
-    const [tasksData, runsData, projectsData, profileData] = await Promise.all([
+    const [
+      tasksData,
+      runsData,
+      projectsData,
+      profileData,
+      agentsData,
+      apiKeysData,
+    ] = await Promise.all([
       apiFetch<{ tasks: Task[] }>(`/projects/${projectId}/tasks`),
       apiFetch<{ runs: AgentRun[] }>(`/projects/${projectId}/runs`),
       apiFetch<{ projects: { id: string; name: string }[] }>(
@@ -61,13 +93,35 @@ export default function AppBoardPage() {
       ),
       apiFetch<{ profile: { full_name: string | null; email: string } }>(
         `/profile?workspaceId=${workspaceId}`
-      ).catch(() => null)
+      ).catch(() => null),
+      apiFetch<{ agents: Agent[] }>(`/workspaces/${workspaceId}/agents`).catch(
+        () => ({
+          agents: [] as Agent[],
+        })
+      ),
+      apiFetch<{
+        key: string;
+        value: {
+          anthropic?: { configured: boolean };
+          openai?: { configured: boolean };
+        } | null;
+      }>("/user/settings?key=provider_api_keys").catch(() => ({
+        key: "provider_api_keys",
+        value: null,
+      })),
     ]);
 
-    const currentProject = projectsData.projects.find((project) => project.id === projectId);
+    const currentProject = projectsData.projects.find(
+      (project) => project.id === projectId
+    );
     setTasks(tasksData.tasks);
     setRuns(runsData.runs);
     setProjectName(currentProject?.name || "[untitled]");
+    setAgents(agentsData.agents ?? []);
+    setProviderApiKeysConfigured({
+      anthropic: apiKeysData.value?.anthropic?.configured ?? false,
+      openai: apiKeysData.value?.openai?.configured ?? false,
+    });
     if (profileData?.profile) {
       const { full_name, email } = profileData.profile;
       if (full_name?.trim()) {
@@ -101,31 +155,119 @@ export default function AppBoardPage() {
     const supabase = createClient();
     const channel = supabase
       .channel("agentos-board")
-      .on("postgres_changes", { event: "*", schema: "public", table: "tasks" }, () => load())
-      .on("postgres_changes", { event: "*", schema: "public", table: "agent_runs" }, () => load())
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "tasks" },
+        () => load()
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "agent_runs" },
+        () => load()
+      )
       .subscribe();
     return () => {
       supabase.removeChannel(channel).catch(console.error);
     };
   }, [projectId]);
 
+  // Stream task_logs for the active task so command output updates live
+  useEffect(() => {
+    if (!activeTaskId) return;
+
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`task-logs-${activeTaskId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "task_logs",
+          filter: `task_id=eq.${activeTaskId}`,
+        },
+        (payload: { new: TaskLog }) => {
+          setLogs((prev) => [payload.new, ...prev]);
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "task_logs",
+          filter: `task_id=eq.${activeTaskId}`,
+        },
+        (payload: { new: TaskLog }) => {
+          setLogs((prev) =>
+            prev.map((log) => (log.id === payload.new.id ? payload.new : log))
+          );
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel).catch(console.error);
+    };
+  }, [activeTaskId]);
+
   const filteredTasks = tasks.filter((task) => {
     if (!search.trim()) return true;
     const q = search.toLowerCase();
     return (
-      task.title.toLowerCase().includes(q) || task.description.toLowerCase().includes(q)
+      task.title.toLowerCase().includes(q) ||
+      task.description.toLowerCase().includes(q)
     );
   });
 
   const activeTask = tasks.find((t) => t.id === activeTaskId) ?? null;
+  const activeRun = activeTask
+    ? runs.find(
+        (r) =>
+          r.task_id === activeTask.id &&
+          (r.status === "queued" || r.status === "running")
+      )
+    : null;
+
+  const isActiveTaskRunning = Boolean(
+    activeRun ||
+      (activeTaskId === pendingStreamTaskId && pendingStreamRunId)
+  );
+  const activeRunId =
+    activeRun?.id ??
+    (activeTaskId === pendingStreamTaskId ? pendingStreamRunId : null);
+
+  useEffect(() => {
+    if (activeRun?.id === pendingStreamRunId) {
+      setPendingStreamRunId(null);
+      setPendingStreamTaskId(null);
+    }
+    if (activeTaskId !== pendingStreamTaskId) {
+      setPendingStreamTaskId(null);
+      setPendingStreamRunId(null);
+    }
+  }, [activeRun?.id, activeTaskId, pendingStreamRunId, pendingStreamTaskId]);
+
+  const loadTaskDetails = useCallback(async (taskId: string) => {
+    const [logsData, artifactsData] = await Promise.all([
+      apiFetch<{ logs: TaskLog[] }>(`/tasks/${taskId}/logs`),
+      apiFetch<{ artifacts: Artifact[] }>(`/tasks/${taskId}/artifacts`),
+    ]);
+    setLogs(logsData.logs);
+    setArtifacts(artifactsData.artifacts);
+  }, []);
 
   const loadAgents = useCallback(async () => {
     if (!workspaceId) return;
     try {
-      const data = await apiFetch<{ agents: Agent[] }>(`/workspaces/${workspaceId}/agents`);
+      const data = await apiFetch<{ agents: Agent[] }>(
+        `/workspaces/${workspaceId}/agents`
+      );
       const list = data.agents ?? [];
       setAgents(list);
-      setSelectedAgentId((prev) => (prev && list.some((a) => a.id === prev) ? prev : list[0]?.id ?? ""));
+      setSelectedAgentId((prev) =>
+        prev && list.some((a) => a.id === prev) ? prev : list[0]?.id ?? ""
+      );
     } catch (e) {
       console.error(e);
     }
@@ -142,7 +284,9 @@ export default function AppBoardPage() {
     }
     const t = setTimeout(() => {
       apiFetch<{ suggestedSkills: string[] }>(
-        `/workspaces/${workspaceId}/suggest-skills?description=${encodeURIComponent(newDescription)}`
+        `/workspaces/${workspaceId}/suggest-skills?description=${encodeURIComponent(
+          newDescription
+        )}`
       )
         .then((data) => setSuggestedSkills(data.suggestedSkills ?? []))
         .catch(() => setSuggestedSkills([]));
@@ -152,26 +296,31 @@ export default function AppBoardPage() {
 
   async function createTask(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!projectId || !newTitle || !selectedAgentId) return;
-    await apiFetch(`/projects/${projectId}/tasks`, {
-      method: "POST",
-      body: JSON.stringify({
-        title: newTitle,
-        description: newDescription,
-        assigned_agent_id: selectedAgentId
-      })
-    });
-    setNewTitle("");
-    setNewDescription("");
-    setSelectedAgentId(agents[0]?.id ?? "");
-    setNewTaskPanelOpen(false);
-    await load();
+    if (isCreatingTask || !projectId || !newTitle || !selectedAgentId) return;
+    setIsCreatingTask(true);
+    try {
+      await apiFetch(`/projects/${projectId}/tasks`, {
+        method: "POST",
+        body: JSON.stringify({
+          title: newTitle,
+          description: newDescription,
+          assigned_agent_id: selectedAgentId,
+        }),
+      });
+      setNewTitle("");
+      setNewDescription("");
+      setSelectedAgentId(agents[0]?.id ?? "");
+      setNewTaskPanelOpen(false);
+      await load();
+    } finally {
+      setIsCreatingTask(false);
+    }
   }
 
   async function updateStatus(taskId: string, status: TaskStatus) {
     await apiFetch(`/tasks/${taskId}`, {
       method: "PATCH",
-      body: JSON.stringify({ status })
+      body: JSON.stringify({ status }),
     });
     await load();
   }
@@ -183,32 +332,51 @@ export default function AppBoardPage() {
   }
 
   async function runTask(taskId: string) {
-    const agentId = prompt("Agent id (optional):") || "";
-    const model = prompt("Model override (optional):") || "";
-    await apiFetch(`/tasks/${taskId}/run`, {
+    const task = tasks.find((t) => t.id === taskId);
+    const run = await apiFetch<{ id: string }>(`/tasks/${taskId}/run`, {
       method: "POST",
-      body: JSON.stringify({ agentId: agentId || undefined, model: model || undefined })
+      body: JSON.stringify({ agentId: task?.assigned_agent_id ?? undefined }),
     });
-    await load();
+    setPendingStreamRunId(run.id);
+    setPendingStreamTaskId(taskId);
+    load().catch(console.error);
   }
 
   async function openTask(taskId: string) {
     setActiveTaskId(taskId);
-    const [logsData, artifactsData] = await Promise.all([
-      apiFetch<{ logs: TaskLog[] }>(`/tasks/${taskId}/logs`),
-      apiFetch<{ artifacts: Artifact[] }>(`/tasks/${taskId}/artifacts`)
-    ]);
-    setLogs(logsData.logs);
-    setArtifacts(artifactsData.artifacts);
+    await loadTaskDetails(taskId);
   }
 
   async function review(taskId: string, action: "approve" | "reject") {
     await apiFetch(`/tasks/${taskId}/review`, {
       method: "POST",
-      body: JSON.stringify({ action })
+      body: JSON.stringify({ action }),
     });
     await load();
   }
+
+  function handleTaskUpdate(updatedTask: Task) {
+    setTasks((prev) =>
+      prev.map((t) => (t.id === updatedTask.id ? updatedTask : t))
+    );
+    setSnackbarMessage("Task updated");
+  }
+
+  useEffect(() => {
+    if (!snackbarMessage) return;
+    const t = setTimeout(() => setSnackbarMessage(null), 3000);
+    return () => clearTimeout(t);
+  }, [snackbarMessage]);
+
+  useEffect(() => {
+    if (!activeTaskId || activeTask?.status !== "ai_working") return;
+
+    const interval = setInterval(() => {
+      loadTaskDetails(activeTaskId).catch(console.error);
+    }, 2500);
+
+    return () => clearInterval(interval);
+  }, [activeTask?.status, activeTaskId, loadTaskDetails]);
 
   return (
     <div className="appBoard">
@@ -219,6 +387,7 @@ export default function AppBoardPage() {
         onNewTaskClick={() => setNewTaskPanelOpen(true)}
         runs={runs}
         tasks={tasks}
+        agents={agents}
       />
       <div className="appBoard__main">
         <TopBar
@@ -261,6 +430,7 @@ export default function AppBoardPage() {
           onAgentChange={setSelectedAgentId}
           suggestedSkills={suggestedSkills}
           onSubmit={createTask}
+          isSubmitting={isCreatingTask}
           onClose={() => {
             setNewTaskPanelOpen(false);
             setNewTitle("");
@@ -274,10 +444,30 @@ export default function AppBoardPage() {
           task={activeTask}
           logs={logs}
           artifacts={artifacts}
-          workspaceId={workspaceId}
+          onRun={runTask}
+          isRunning={isActiveTaskRunning}
+          activeRunId={activeRunId}
+          onStreamDone={() => activeTaskId && loadTaskDetails(activeTaskId)}
           onClose={() => setActiveTaskId(null)}
           onReview={review}
+          onDelete={async (taskId) => {
+            await deleteTask(taskId);
+            setActiveTaskId(null);
+          }}
+          onTaskUpdate={handleTaskUpdate}
+          assignedAgentBackend={
+            activeTask.assigned_agent_id
+              ? agents.find((a) => a.id === activeTask.assigned_agent_id)
+                  ?.backend ?? null
+              : null
+          }
+          providerApiKeysConfigured={providerApiKeysConfigured}
         />
+      )}
+      {snackbarMessage && (
+        <div className="appBoard__snackbar" role="status" aria-live="polite">
+          {snackbarMessage}
+        </div>
       )}
     </div>
   );
