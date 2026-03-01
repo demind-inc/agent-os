@@ -55,43 +55,65 @@ export default function AppBoardPage() {
   }>({});
 
   const projectId = useMemo(
-    () => (typeof window !== "undefined" ? localStorage.getItem("agentos_project_id") || "" : ""),
+    () =>
+      typeof window !== "undefined"
+        ? localStorage.getItem("agentos_project_id") || ""
+        : "",
     []
   );
   const workspaceId = useMemo(
     () =>
-      typeof window !== "undefined" ? localStorage.getItem("agentos_workspace_id") || "" : "",
+      typeof window !== "undefined"
+        ? localStorage.getItem("agentos_workspace_id") || ""
+        : "",
     []
   );
 
   async function load() {
     if (!projectId || !workspaceId) return;
-    const [tasksData, runsData, projectsData, profileData, agentsData, apiKeysData] =
-      await Promise.all([
-        apiFetch<{ tasks: Task[] }>(`/projects/${projectId}/tasks`),
-        apiFetch<{ runs: AgentRun[] }>(`/projects/${projectId}/runs`),
-        apiFetch<{ projects: { id: string; name: string }[] }>(
-          `/workspaces/${workspaceId}/projects`
-        ),
-        apiFetch<{ profile: { full_name: string | null; email: string } }>(
-          `/profile?workspaceId=${workspaceId}`
-        ).catch(() => null),
-        apiFetch<{ agents: Agent[] }>(`/workspaces/${workspaceId}/agents`).catch(() => ({
-          agents: [] as Agent[]
-        })),
-        apiFetch<{ key: string; value: { anthropic?: { configured: boolean }; openai?: { configured: boolean } } | null }>(
-          "/user/settings?key=provider_api_keys"
-        ).catch(() => ({ key: "provider_api_keys", value: null }))
-      ]);
+    const [
+      tasksData,
+      runsData,
+      projectsData,
+      profileData,
+      agentsData,
+      apiKeysData,
+    ] = await Promise.all([
+      apiFetch<{ tasks: Task[] }>(`/projects/${projectId}/tasks`),
+      apiFetch<{ runs: AgentRun[] }>(`/projects/${projectId}/runs`),
+      apiFetch<{ projects: { id: string; name: string }[] }>(
+        `/workspaces/${workspaceId}/projects`
+      ),
+      apiFetch<{ profile: { full_name: string | null; email: string } }>(
+        `/profile?workspaceId=${workspaceId}`
+      ).catch(() => null),
+      apiFetch<{ agents: Agent[] }>(`/workspaces/${workspaceId}/agents`).catch(
+        () => ({
+          agents: [] as Agent[],
+        })
+      ),
+      apiFetch<{
+        key: string;
+        value: {
+          anthropic?: { configured: boolean };
+          openai?: { configured: boolean };
+        } | null;
+      }>("/user/settings?key=provider_api_keys").catch(() => ({
+        key: "provider_api_keys",
+        value: null,
+      })),
+    ]);
 
-    const currentProject = projectsData.projects.find((project) => project.id === projectId);
+    const currentProject = projectsData.projects.find(
+      (project) => project.id === projectId
+    );
     setTasks(tasksData.tasks);
     setRuns(runsData.runs);
     setProjectName(currentProject?.name || "[untitled]");
     setAgents(agentsData.agents ?? []);
     setProviderApiKeysConfigured({
       anthropic: apiKeysData.value?.anthropic?.configured ?? false,
-      openai: apiKeysData.value?.openai?.configured ?? false
+      openai: apiKeysData.value?.openai?.configured ?? false,
     });
     if (profileData?.profile) {
       const { full_name, email } = profileData.profile;
@@ -126,8 +148,16 @@ export default function AppBoardPage() {
     const supabase = createClient();
     const channel = supabase
       .channel("agentos-board")
-      .on("postgres_changes", { event: "*", schema: "public", table: "tasks" }, () => load())
-      .on("postgres_changes", { event: "*", schema: "public", table: "agent_runs" }, () => load())
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "tasks" },
+        () => load()
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "agent_runs" },
+        () => load()
+      )
       .subscribe();
     return () => {
       supabase.removeChannel(channel).catch(console.error);
@@ -178,24 +208,26 @@ export default function AppBoardPage() {
     if (!search.trim()) return true;
     const q = search.toLowerCase();
     return (
-      task.title.toLowerCase().includes(q) || task.description.toLowerCase().includes(q)
+      task.title.toLowerCase().includes(q) ||
+      task.description.toLowerCase().includes(q)
     );
   });
 
   const activeTask = tasks.find((t) => t.id === activeTaskId) ?? null;
-  const isActiveTaskRunning = Boolean(
-    activeTask &&
-      runs.some(
-        (run) =>
-          run.task_id === activeTask.id &&
-          (run.status === "queued" || run.status === "running")
+  const activeRun = activeTask
+    ? runs.find(
+        (r) =>
+          r.task_id === activeTask.id &&
+          (r.status === "queued" || r.status === "running")
       )
-  );
+    : null;
+
+  const isActiveTaskRunning = Boolean(activeRun);
 
   const loadTaskDetails = useCallback(async (taskId: string) => {
     const [logsData, artifactsData] = await Promise.all([
       apiFetch<{ logs: TaskLog[] }>(`/tasks/${taskId}/logs`),
-      apiFetch<{ artifacts: Artifact[] }>(`/tasks/${taskId}/artifacts`)
+      apiFetch<{ artifacts: Artifact[] }>(`/tasks/${taskId}/artifacts`),
     ]);
     setLogs(logsData.logs);
     setArtifacts(artifactsData.artifacts);
@@ -204,10 +236,14 @@ export default function AppBoardPage() {
   const loadAgents = useCallback(async () => {
     if (!workspaceId) return;
     try {
-      const data = await apiFetch<{ agents: Agent[] }>(`/workspaces/${workspaceId}/agents`);
+      const data = await apiFetch<{ agents: Agent[] }>(
+        `/workspaces/${workspaceId}/agents`
+      );
       const list = data.agents ?? [];
       setAgents(list);
-      setSelectedAgentId((prev) => (prev && list.some((a) => a.id === prev) ? prev : list[0]?.id ?? ""));
+      setSelectedAgentId((prev) =>
+        prev && list.some((a) => a.id === prev) ? prev : list[0]?.id ?? ""
+      );
     } catch (e) {
       console.error(e);
     }
@@ -224,7 +260,9 @@ export default function AppBoardPage() {
     }
     const t = setTimeout(() => {
       apiFetch<{ suggestedSkills: string[] }>(
-        `/workspaces/${workspaceId}/suggest-skills?description=${encodeURIComponent(newDescription)}`
+        `/workspaces/${workspaceId}/suggest-skills?description=${encodeURIComponent(
+          newDescription
+        )}`
       )
         .then((data) => setSuggestedSkills(data.suggestedSkills ?? []))
         .catch(() => setSuggestedSkills([]));
@@ -242,8 +280,8 @@ export default function AppBoardPage() {
         body: JSON.stringify({
           title: newTitle,
           description: newDescription,
-          assigned_agent_id: selectedAgentId
-        })
+          assigned_agent_id: selectedAgentId,
+        }),
       });
       setNewTitle("");
       setNewDescription("");
@@ -258,7 +296,7 @@ export default function AppBoardPage() {
   async function updateStatus(taskId: string, status: TaskStatus) {
     await apiFetch(`/tasks/${taskId}`, {
       method: "PATCH",
-      body: JSON.stringify({ status })
+      body: JSON.stringify({ status }),
     });
     await load();
   }
@@ -273,7 +311,7 @@ export default function AppBoardPage() {
     const task = tasks.find((t) => t.id === taskId);
     await apiFetch(`/tasks/${taskId}/run`, {
       method: "POST",
-      body: JSON.stringify({ agentId: task?.assigned_agent_id ?? undefined })
+      body: JSON.stringify({ agentId: task?.assigned_agent_id ?? undefined }),
     });
     await load();
   }
@@ -286,7 +324,7 @@ export default function AppBoardPage() {
   async function review(taskId: string, action: "approve" | "reject") {
     await apiFetch(`/tasks/${taskId}/review`, {
       method: "POST",
-      body: JSON.stringify({ action })
+      body: JSON.stringify({ action }),
     });
     await load();
   }
@@ -381,6 +419,8 @@ export default function AppBoardPage() {
           artifacts={artifacts}
           onRun={runTask}
           isRunning={isActiveTaskRunning}
+          activeRunId={activeRun?.id ?? null}
+          onStreamDone={() => activeTaskId && loadTaskDetails(activeTaskId)}
           onClose={() => setActiveTaskId(null)}
           onReview={review}
           onDelete={async (taskId) => {
@@ -390,7 +430,8 @@ export default function AppBoardPage() {
           onTaskUpdate={handleTaskUpdate}
           assignedAgentBackend={
             activeTask.assigned_agent_id
-              ? agents.find((a) => a.id === activeTask.assigned_agent_id)?.backend ?? null
+              ? agents.find((a) => a.id === activeTask.assigned_agent_id)
+                  ?.backend ?? null
               : null
           }
           providerApiKeysConfigured={providerApiKeysConfigured}

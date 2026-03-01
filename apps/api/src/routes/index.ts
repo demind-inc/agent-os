@@ -2,6 +2,11 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { adminSupabase, assertWorkspaceMember, detectSkillsFromDescription, getUserFromBearer } from "../plugins/supabase.js";
 import { enqueueRun } from "../services/runner.js";
+import {
+  registerRunStream,
+  unregisterRunStream,
+  type RunStreamSender,
+} from "../services/run-stream-registry.js";
 
 const createTaskSchema = z.object({
   title: z.string().min(1),
@@ -398,6 +403,54 @@ export async function registerRoutes(app: FastifyInstance) {
     if (error || !run) return reply.status(400).send({ error: error?.message || 'Failed to create run' });
     await enqueueRun(run.id);
     return run;
+  });
+
+  app.get('/runs/:runId/stream', async (request, reply) => {
+    const user = (request as any).user;
+    const params = request.params as { runId: string };
+
+    const { data: run } = await adminSupabase
+      .from('agent_runs')
+      .select('id, task_id, tasks(project_id, projects(workspace_id))')
+      .eq('id', params.runId)
+      .single();
+    if (!run) return reply.status(404).send({ error: 'Run not found' });
+    const workspaceId = (run as any).tasks?.projects?.workspace_id as string | undefined;
+    if (!workspaceId) return reply.status(404).send({ error: 'Run task not found' });
+    await assertWorkspaceMember(user.id, workspaceId);
+
+    const res = reply.raw;
+    const origin = (request.headers.origin as string) || '*';
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders?.();
+
+    const runId = params.runId;
+    const send: RunStreamSender = (event, data) => {
+      try {
+        const payload = data.includes('\n') ? data.split('\n').map((line) => `data: ${line}`).join('\n') : `data: ${data}`;
+        res.write(`event: ${event}\n${payload}\n\n`);
+        res.flush?.();
+        if (event === 'done') {
+          res.end();
+          unregisterRunStream(runId, send);
+        }
+      } catch (_) {
+        // client may have disconnected
+      }
+    };
+    registerRunStream(runId, send);
+
+    request.raw.on('close', () => {
+      unregisterRunStream(runId, send);
+    });
+
+    // Keep connection open; runner pushes chunks and sends "done" when finished
+    await new Promise<void>(() => {});
   });
 
   app.get('/tasks/:taskId/logs', async (request, reply) => {

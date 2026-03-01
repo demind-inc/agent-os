@@ -6,6 +6,9 @@ export type StreamLogCallback = (
   payload?: Record<string, unknown>
 ) => void | Promise<void>;
 
+/** Called with each streamed text chunk; not persisted to DB until stream ends. */
+export type StreamChunkCallback = (text: string) => void | Promise<void>;
+
 /** Map app model slugs to Anthropic API model IDs when needed. */
 function resolveModel(slug: string): string {
   const map: Record<string, string> = {
@@ -17,15 +20,17 @@ function resolveModel(slug: string): string {
 }
 
 /**
- * Stream a task through Claude and invoke onLog for each piece of streamed content.
- * Logs come from the model stream (content_block_delta text), not hardcoded messages.
- * Uses the provided apiKey (user's own key from settings); if missing, skips the stream.
+ * Stream a task through Claude. Streamed text is sent via onStreamChunk only (not stored in DB).
+ * Control messages (start/finish) go to onLog. When stream ends, fullText is returned for the
+ * runner to store as one row in log or artifact.
+ * Use ## Section title for each major step and ``` for command blocks so the UI can render sections.
  */
 export async function streamTaskWithClaude(
   task: { title: string; description: string },
   agent: { model: string },
   onLog: StreamLogCallback,
-  apiKey: string | null
+  apiKey: string | null,
+  onStreamChunk?: StreamChunkCallback
 ): Promise<{ fullText: string }> {
   if (!apiKey || !apiKey.trim()) {
     await onLog("warn", "No Anthropic API key configured. Add your key in Settings → API Keys.", {
@@ -37,17 +42,16 @@ export async function streamTaskWithClaude(
   const client = new Anthropic({ apiKey });
   const model = resolveModel(agent.model);
 
-  const systemPrompt = `You are an AI assistant working on a task. Respond concisely. Describe what you're doing step by step as you work.`;
-  const userContent = `Task: ${task.title}\n\n${task.description || "No additional description."}\n\nBriefly outline how you would approach this task (2-4 short steps).`;
+  const systemPrompt = `You are an AI assistant working on a task. Structure your response so the execution console can show clear sections.
+
+Rules:
+- Start each major step or action with a section heading on its own line: ## <short action title>
+- For any commands you describe or run, wrap them in a fenced code block with \`\`\`bash or \`\`\` (command on lines after the opener, then \`\`\` to close). If there is output, add it after the command block or in a second block.
+- Describe what you're doing concisely. Use 2–5 sections for a typical task.`;
+
+  const userContent = `Task: ${task.title}\n\n${task.description || "No additional description."}\n\nWork through this task. Start with a ## section title for your first step, then describe and use \`\`\` blocks for any commands.`;
 
   let fullText = "";
-  const lineBuffer: string[] = [];
-  const flushBuffer = async () => {
-    if (lineBuffer.length === 0) return;
-    const message = lineBuffer.join("").trim();
-    if (message) await onLog("info", message, { source: "model" });
-    lineBuffer.length = 0;
-  };
 
   await onLog("info", "Starting model stream…", { source: "runner", model });
 
@@ -61,22 +65,14 @@ export async function streamTaskWithClaude(
   return new Promise((resolve, reject) => {
     stream.on("text", (text: string) => {
       fullText += text;
-      const lines = text.split("\n");
-      for (let i = 0; i < lines.length; i++) {
-        if (i === lines.length - 1 && !text.endsWith("\n")) {
-          lineBuffer.push(lines[i]!);
-        } else {
-          lineBuffer.push(lines[i]!);
-          lineBuffer.push("\n");
-          void flushBuffer();
-        }
+      if (onStreamChunk) {
+        void Promise.resolve(onStreamChunk(text)).catch(() => {});
       }
     });
 
     stream
       .finalMessage()
       .then(async () => {
-        await flushBuffer();
         await onLog("info", "Model stream finished.", { source: "runner" });
         resolve({ fullText });
       })

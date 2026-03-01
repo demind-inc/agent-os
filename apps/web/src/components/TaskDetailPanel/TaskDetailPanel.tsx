@@ -3,7 +3,8 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import type { Task } from "@/types/domain";
-import { apiFetch } from "@/lib/api/client";
+import { apiFetch, apiStreamRun } from "@/lib/api/client";
+import { parseConsoleSections } from "./parseConsoleSections";
 import "./TaskDetailPanel.scss";
 
 type TaskLog = {
@@ -59,6 +60,10 @@ type TaskDetailPanelProps = {
   artifacts: Artifact[];
   onRun: (taskId: string) => void;
   isRunning?: boolean;
+  /** When set and task is running, execution console subscribes to this run's stream. */
+  activeRunId?: string | null;
+  /** Called when the run stream ends so parent can refetch artifacts. */
+  onStreamDone?: () => void;
   onClose: () => void;
   onReview: (taskId: string, action: "approve" | "reject") => void;
   onDelete: (taskId: string) => void | Promise<void>;
@@ -73,6 +78,8 @@ export function TaskDetailPanel({
   artifacts,
   onRun,
   isRunning = false,
+  activeRunId = null,
+  onStreamDone,
   onClose,
   onReview,
   onDelete,
@@ -107,8 +114,32 @@ export function TaskDetailPanel({
     null
   );
   const [previewCopied, setPreviewCopied] = useState(false);
+  const [streamedText, setStreamedText] = useState("");
   const titleInputRef = useRef<HTMLInputElement>(null);
   const descriptionInputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Subscribe to run stream while AI is working; do not persist chunks, only show in UI
+  useEffect(() => {
+    if (!isRunning || !activeRunId) {
+      if (!isRunning) setStreamedText("");
+      return;
+    }
+    setStreamedText("");
+    let cancelled = false;
+    apiStreamRun(activeRunId, {
+      onChunk: (text) => {
+        if (!cancelled) setStreamedText((prev) => prev + text);
+      },
+      onDone: () => {
+        if (!cancelled) onStreamDone?.();
+      },
+    }).catch(() => {
+      if (!cancelled) onStreamDone?.();
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isRunning, activeRunId, onStreamDone]);
 
   async function handleDelete() {
     if (isDeleting) return;
@@ -269,138 +300,187 @@ export function TaskDetailPanel({
               </p>
             )}
           </div>
+          {task.status !== "backlog" && (
           <div className="taskDetailPanel__section">
             <h4>Execution Console</h4>
-            <div className="taskDetailPanel__console column">
-              {logs.length === 0 ? (
-                <p className="taskDetailPanel__consoleEmpty">No logs yet.</p>
-              ) : (
-                logs.map((log) => {
-                  const timeStr = new Date(log.created_at).toLocaleTimeString();
-                  const payload = log.payload as Record<string, unknown> | null;
+            <div className="taskDetailPanel__consoleTerminal">
+              <div className="taskDetailPanel__consoleTerminalHeader">
+                &gt;_ Execution console
+              </div>
+              <div className="taskDetailPanel__console column">
+                {(() => {
+                  const executionLogArtifact = artifacts.find(
+                    (a) => a.type === "execution_log"
+                  );
+                  const storedContent =
+                    (executionLogArtifact?.metadata?.content as string) ?? "";
+                  const contentToShow =
+                    isRunning && streamedText
+                      ? streamedText
+                      : storedContent;
 
-                  if (isActionPayload(payload)) {
-                    const toolLabel =
-                      payload.tool === "read_file"
-                        ? "Read file"
-                        : (payload.tool as string)?.replace(/_/g, " ") ??
-                          "Action";
+                  if (!contentToShow.trim() && logs.length === 0) {
                     return (
-                      <div
-                        key={log.id}
-                        className="taskDetailPanel__consoleEntry taskDetailPanel__consoleAction"
-                      >
-                        <div className="taskDetailPanel__consoleMeta">
-                          <span className="taskDetailPanel__consoleTime">
-                            {timeStr}
-                          </span>
-                        </div>
-                        <div className="taskDetailPanel__consoleActionCard">
-                          <div className="taskDetailPanel__consoleActionTitle">
-                            {toolLabel}
-                          </div>
-                          {payload.path != null && (
-                            <div className="taskDetailPanel__consoleActionPath">
-                              {String(payload.path)}
-                            </div>
-                          )}
-                          {(payload.result != null ||
-                            payload.summary != null) && (
-                            <div className="taskDetailPanel__consoleActionResult">
-                              {String(payload.result ?? payload.summary ?? "")}
-                            </div>
-                          )}
-                        </div>
-                      </div>
+                      <p className="taskDetailPanel__consoleEmpty">
+                        No logs yet.
+                      </p>
                     );
                   }
 
-                  if (isCommandPayload(payload)) {
-                    const isStreaming = payload.status === "running";
-                    const status =
-                      payload.status === "done"
-                        ? "Done"
-                        : payload.status === "error"
-                        ? "Error"
-                        : isStreaming
-                        ? "Running"
-                        : null;
-                    const output = payload.output != null ? String(payload.output) : "";
-                    const showOutput = isStreaming || output !== "";
+                  if (contentToShow.trim()) {
+                    const sections = parseConsoleSections(contentToShow);
                     return (
-                      <div
-                        key={log.id}
-                        className={`taskDetailPanel__consoleEntry taskDetailPanel__consoleCommand ${isStreaming ? "taskDetailPanel__consoleCommand--streaming" : ""}`}
-                      >
-                        <div className="taskDetailPanel__consoleMeta">
-                          <span className="taskDetailPanel__consoleTime">
-                            {timeStr}
-                          </span>
-                          {status && (
-                            <span
-                              className={`taskDetailPanel__consoleCommandStatus taskDetailPanel__consoleCommandStatus--${payload.status}`}
-                            >
-                              • {status}
-                            </span>
-                          )}
-                        </div>
-                        <div className="taskDetailPanel__consoleCommandBlock">
-                          <div className="taskDetailPanel__consoleCommandLabel">
-                            &gt;_ Run command
+                      <>
+                        {sections.map((section, idx) => (
+                          <div
+                            key={idx}
+                            className="taskDetailPanel__consoleSection"
+                          >
+                            <div className="taskDetailPanel__consoleSectionTitle">
+                              {section.title}
+                            </div>
+                            <div className="taskDetailPanel__consoleSectionBody">
+                              {section.parts.map((part, partIdx) =>
+                                typeof part === "string" ? (
+                                  part.trim() ? (
+                                    <div
+                                      key={partIdx}
+                                      className="taskDetailPanel__consoleTextMessage"
+                                    >
+                                      {part.trim()}
+                                    </div>
+                                  ) : null
+                                ) : (
+                                  <div
+                                    key={partIdx}
+                                    className="taskDetailPanel__consoleEntry taskDetailPanel__consoleCommand"
+                                  >
+                                    <div className="taskDetailPanel__consoleCommandBlock">
+                                      <div className="taskDetailPanel__consoleCommandLabel">
+                                        &gt;_ Run command
+                                      </div>
+                                      <div className="taskDetailPanel__consoleCommandTerminal">
+                                        <pre className="taskDetailPanel__consoleCommandOutput">
+                                          {part.content}
+                                          {isRunning &&
+                                            idx === sections.length - 1 &&
+                                            partIdx === section.parts.length - 1 && (
+                                              <span
+                                                className="taskDetailPanel__consoleCommandCursor"
+                                                aria-hidden
+                                              />
+                                            )}
+                                        </pre>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )
+                              )}
+                            </div>
                           </div>
-                          <div className="taskDetailPanel__consoleCommandTerminal">
-                            <code className="taskDetailPanel__consoleCommandLine">
-                              $ {payload.command ?? log.message}
-                            </code>
-                            {showOutput && (
-                              <>
-                                <div className="taskDetailPanel__consoleCommandOutputLabel">
-                                  # Output
-                                </div>
-                                <pre className="taskDetailPanel__consoleCommandOutput">
-                                  {output}
-                                  {isStreaming && (
-                                    <span className="taskDetailPanel__consoleCommandCursor" aria-hidden />
-                                  )}
-                                </pre>
-                              </>
+                        ))}
+                      </>
+                    );
+                  }
+
+                  return logs.map((log) => {
+                    const payload = log.payload as Record<string, unknown> | null;
+
+                    if (isActionPayload(payload)) {
+                      const toolLabel =
+                        payload.tool === "read_file"
+                          ? "Read file"
+                          : (payload.tool as string)?.replace(/_/g, " ") ??
+                            "Action";
+                      return (
+                        <div
+                          key={log.id}
+                          className="taskDetailPanel__consoleEntry taskDetailPanel__consoleAction"
+                        >
+                          <div className="taskDetailPanel__consoleActionCard">
+                            <div className="taskDetailPanel__consoleActionTitle">
+                              {toolLabel}
+                            </div>
+                            {payload.path != null && (
+                              <div className="taskDetailPanel__consoleActionPath">
+                                {String(payload.path)}
+                              </div>
+                            )}
+                            {(payload.result != null ||
+                              payload.summary != null) && (
+                              <div className="taskDetailPanel__consoleActionResult">
+                                {String(payload.result ?? payload.summary ?? "")}
+                              </div>
                             )}
                           </div>
                         </div>
+                      );
+                    }
+
+                    if (isCommandPayload(payload)) {
+                      const isStreaming = payload.status === "running";
+                      const output =
+                        payload.output != null ? String(payload.output) : "";
+                      const showOutput = isStreaming || output !== "";
+                      return (
+                        <div
+                          key={log.id}
+                          className={`taskDetailPanel__consoleEntry taskDetailPanel__consoleCommand ${isStreaming ? "taskDetailPanel__consoleCommand--streaming" : ""}`}
+                        >
+                          <div className="taskDetailPanel__consoleCommandBlock">
+                            <div className="taskDetailPanel__consoleCommandLabel">
+                              &gt;_ Run command
+                            </div>
+                            <div className="taskDetailPanel__consoleCommandTerminal">
+                              <code className="taskDetailPanel__consoleCommandLine">
+                                $ {payload.command ?? log.message}
+                              </code>
+                              {showOutput && (
+                                <>
+                                  <div className="taskDetailPanel__consoleCommandOutputLabel">
+                                    # Output
+                                  </div>
+                                  <pre className="taskDetailPanel__consoleCommandOutput">
+                                    {output}
+                                    {isStreaming && (
+                                      <span
+                                        className="taskDetailPanel__consoleCommandCursor"
+                                        aria-hidden
+                                      />
+                                    )}
+                                  </pre>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div
+                        key={log.id}
+                        className="taskDetailPanel__consoleEntry taskDetailPanel__consoleText"
+                      >
+                        <div className="taskDetailPanel__consoleTextMessage">
+                          {log.message}
+                        </div>
+                        {payload &&
+                          Object.keys(payload).length > 0 &&
+                          payload.kind !== "action" &&
+                          payload.kind !== "command" && (
+                            <pre className="taskDetailPanel__consolePayload">
+                              {JSON.stringify(payload, null, 2)}
+                            </pre>
+                          )}
                       </div>
                     );
-                  }
-
-                  return (
-                    <div
-                      key={log.id}
-                      className="taskDetailPanel__consoleEntry taskDetailPanel__consoleText"
-                    >
-                      <div className="taskDetailPanel__consoleMeta">
-                        <span className="taskDetailPanel__consoleLevel">
-                          {log.level}
-                        </span>
-                        <span className="taskDetailPanel__consoleTime">
-                          {timeStr}
-                        </span>
-                      </div>
-                      <div className="taskDetailPanel__consoleTextMessage">
-                        {log.message}
-                      </div>
-                      {payload &&
-                        Object.keys(payload).length > 0 &&
-                        payload.kind !== "action" &&
-                        payload.kind !== "command" && (
-                          <pre className="taskDetailPanel__consolePayload">
-                            {JSON.stringify(payload, null, 2)}
-                          </pre>
-                        )}
-                    </div>
-                  );
-                })
-              )}
+                  });
+                })()}
+              </div>
             </div>
           </div>
+          )}
           <div className="taskDetailPanel__section">
             <h4>Artifacts ({artifacts.length})</h4>
             <div className="column">
@@ -541,44 +621,49 @@ export function TaskDetailPanel({
                 )}
               </dl>
               {selectedArtifact.metadata &&
-                typeof selectedArtifact.metadata.preview === "string" &&
-                selectedArtifact.metadata.preview.length > 0 && (
-                  <div className="taskDetailPanel__artifactPreview">
-                    <div className="taskDetailPanel__artifactPreviewHeader">
-                      <h4>Preview</h4>
-                      <button
-                        type="button"
-                        className="taskDetailPanel__artifactPreviewCopy"
-                        onClick={async () => {
-                          const text =
-                            selectedArtifact.metadata?.preview;
-                          if (typeof text !== "string") return;
-                          try {
-                            await navigator.clipboard.writeText(text);
-                            setPreviewCopied(true);
-                            setTimeout(() => setPreviewCopied(false), 2000);
-                          } catch {
-                            // ignore
-                          }
-                        }}
-                        aria-label={previewCopied ? "Copied" : "Copy preview"}
-                      >
-                        {previewCopied ? (
-                          "Copied!"
-                        ) : (
-                          <span
-                            className="taskDetailPanel__icon"
-                            data-icon="copy"
-                            aria-hidden
-                          />
-                        )}
-                      </button>
+                (() => {
+                  const previewText =
+                    typeof selectedArtifact.metadata.preview === "string"
+                      ? selectedArtifact.metadata.preview
+                      : typeof selectedArtifact.metadata.content === "string"
+                        ? selectedArtifact.metadata.content
+                        : "";
+                  if (previewText.length === 0) return null;
+                  return (
+                    <div className="taskDetailPanel__artifactPreview">
+                      <div className="taskDetailPanel__artifactPreviewHeader">
+                        <h4>Preview</h4>
+                        <button
+                          type="button"
+                          className="taskDetailPanel__artifactPreviewCopy"
+                          onClick={async () => {
+                            try {
+                              await navigator.clipboard.writeText(previewText);
+                              setPreviewCopied(true);
+                              setTimeout(() => setPreviewCopied(false), 2000);
+                            } catch {
+                              // ignore
+                            }
+                          }}
+                          aria-label={previewCopied ? "Copied" : "Copy preview"}
+                        >
+                          {previewCopied ? (
+                            "Copied!"
+                          ) : (
+                            <span
+                              className="taskDetailPanel__icon"
+                              data-icon="copy"
+                              aria-hidden
+                            />
+                          )}
+                        </button>
+                      </div>
+                      <pre className="taskDetailPanel__artifactPreviewPre">
+                        {previewText}
+                      </pre>
                     </div>
-                    <pre className="taskDetailPanel__artifactPreviewPre">
-                      {selectedArtifact.metadata.preview}
-                    </pre>
-                  </div>
-                )}
+                  );
+                })()}
             </div>
           </div>
         </div>

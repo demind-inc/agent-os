@@ -220,14 +220,39 @@
   }
 }
 
+/* Execution console — light background; only Run command blocks are dark */
+.taskDetailPanel__consoleTerminal {
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--border-light, #e5e7eb);
+  background: var(--bg-secondary, #f9fafb);
+}
+
+.taskDetailPanel__consoleTerminalHeader {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted, #6b7280);
+  padding: 8px 12px;
+  background: var(--bg-secondary, #f9fafb);
+  border-bottom: 1px solid var(--border-light, #e5e7eb);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+}
+
 .taskDetailPanel__console {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  padding: 12px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--bg-secondary, #f9fafb);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 12px;
+  color: var(--text-primary, #111827);
 }
 
 .taskDetailPanel__consoleEmpty {
-  color: var(--text-muted);
+  color: var(--text-muted, #6b7280);
   font-size: 13px;
   margin: 0;
 }
@@ -236,26 +261,50 @@
   font-size: 13px;
 }
 
+/* Sectioned execution console (## title + body with ``` blocks) */
+.taskDetailPanel__consoleSection {
+  margin-bottom: 16px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.taskDetailPanel__consoleSectionTitle {
+  font-weight: 600;
+  color: var(--text-primary, #111827);
+  margin-bottom: 8px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.taskDetailPanel__consoleSectionBody {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .taskDetailPanel__consoleMeta {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 6px;
   font-size: 11px;
-  color: var(--text-muted);
+  color: var(--text-muted, #6b7280);
 }
 
 .taskDetailPanel__consoleTime {
-  opacity: 0.9;
+  opacity: 0.95;
 }
 
 .taskDetailPanel__consoleLevel {
   text-transform: uppercase;
   letter-spacing: 0.03em;
+  color: var(--text-muted, #6b7280);
 }
 
 .taskDetailPanel__consoleText .taskDetailPanel__consoleTextMessage {
-  color: var(--text-primary);
+  color: var(--text-primary, #111827);
   line-height: 1.45;
 }
 
@@ -263,31 +312,31 @@
   margin: 8px 0 0;
   padding: 8px 10px;
   font-size: 11px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-light);
+  background: var(--bg-primary, #fff);
+  border: 1px solid var(--border-light, #e5e7eb);
   border-radius: var(--radius-sm);
   white-space: pre-wrap;
   overflow: auto;
-  color: var(--text-secondary);
+  color: var(--text-muted, #6b7280);
 }
 
-/* Action card (e.g. Read file) */
+/* Action card (e.g. Read file) — light card inside console */
 .taskDetailPanel__consoleActionCard {
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-md);
+  border: 1px solid var(--border-light, #e5e7eb);
+  border-radius: var(--radius-sm);
   padding: 10px 12px;
-  background: var(--bg-secondary);
+  background: var(--bg-primary, #fff);
 }
 
 .taskDetailPanel__consoleActionTitle {
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--text-primary, #111827);
   margin-bottom: 4px;
 }
 
 .taskDetailPanel__consoleActionPath {
   font-size: 12px;
-  color: var(--text-secondary);
+  color: var(--text-muted, #6b7280);
   font-family: ui-monospace, monospace;
   word-break: break-all;
 }
@@ -295,14 +344,14 @@
 .taskDetailPanel__consoleActionResult {
   margin-top: 6px;
   font-size: 12px;
-  color: var(--text-muted);
+  color: var(--text-muted, #6b7280);
 }
 
-/* Command console (terminal-style) — black background throughout */
+/* Run command block — only this has black/terminal background */
 .taskDetailPanel__consoleCommandBlock {
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   overflow: hidden;
-  border: 1px solid rgba(0, 0, 0, 0.2);
+  border: 1px solid #262626;
   background: #0d0d0d;
 }
 
@@ -637,7 +686,7 @@
 }
 
 .taskDetailPanel__btn {
-  padding: 10px 20px;
+  padding: 10px;
   border-radius: var(--radius-md);
   font-size: 14px;
   font-weight: 500;

@@ -46,3 +46,63 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
 
   return (await res.json()) as T;
 }
+
+const apiBase = () => process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+
+/**
+ * Subscribe to run execution stream (SSE). Call onChunk for each text chunk, onDone when stream ends.
+ * No persistence during stream; server stores one row when done.
+ */
+export async function apiStreamRun(
+  runId: string,
+  callbacks: { onChunk: (text: string) => void; onDone: () => void }
+): Promise<void> {
+  const token = await getAccessToken();
+  const res = await fetch(`${apiBase()}/runs/${runId}/stream`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok || !res.body) {
+    callbacks.onDone();
+    return;
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let eventType = "";
+  let dataLines: string[] = [];
+
+  const flushEvent = () => {
+    if (eventType === "chunk" && dataLines.length > 0) {
+      callbacks.onChunk(dataLines.join("\n"));
+    }
+    if (eventType === "done") {
+      callbacks.onDone();
+    }
+    eventType = "";
+    dataLines = [];
+  };
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+      for (const line of lines) {
+        if (line.startsWith("event:")) {
+          flushEvent();
+          eventType = line.slice(6).trim();
+        } else if (line.startsWith("data:")) {
+          dataLines.push(line.slice(5));
+        } else if (line === "") {
+          flushEvent();
+        }
+      }
+    }
+    flushEvent();
+  } finally {
+    reader.releaseLock();
+    callbacks.onDone();
+  }
+}

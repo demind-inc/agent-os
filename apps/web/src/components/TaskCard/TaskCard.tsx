@@ -68,9 +68,6 @@ export function TaskCard({
       {task.description && <p className="taskCard__desc">{task.description}</p>}
       <div className="taskCard__footer">
         <span className="taskCard__projectBadge">{projectName}</span>
-        <div className="taskCard__assignee" title="Assignee">
-          —
-        </div>
       </div>
       {canRun && (
         <div className="taskCard__actions" onClick={(e) => e.stopPropagation()}>
