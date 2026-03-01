@@ -9,6 +9,7 @@ type StatusColumnProps = {
   label: string;
   className?: string;
   tasks: Task[];
+  projectName: string;
   statusColumns: { key: TaskStatus; label: string }[];
   onUpdateStatus: (taskId: string, status: TaskStatus) => void;
   onDelete: (taskId: string) => void;
@@ -21,6 +22,7 @@ export function StatusColumn({
   label,
   className = "",
   tasks,
+  projectName,
   statusColumns,
   onUpdateStatus,
   onDelete,
@@ -53,6 +55,7 @@ export function StatusColumn({
           <TaskCard
             key={task.id}
             task={task}
+            projectName={projectName}
             statusColumns={statusColumns}
             onUpdateStatus={onUpdateStatus}
             onDelete={onDelete}

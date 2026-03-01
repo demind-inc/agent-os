@@ -38,9 +38,8 @@ export default function ProjectPage() {
       method: "POST",
       body: JSON.stringify({ name })
     });
-    setProjects((prev) => [project, ...prev]);
-    setName("");
-    setDescription("");
+    localStorage.setItem("agentos_project_id", project.id);
+    router.push("/app");
   }
 
   function chooseProject(id: string) {

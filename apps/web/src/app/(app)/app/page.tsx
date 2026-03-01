@@ -28,6 +28,7 @@ export default function AppBoardPage() {
   const [view, setView] = useState<"board" | "list">("board");
   const [newTaskPanelOpen, setNewTaskPanelOpen] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [projectName, setProjectName] = useState("[untitled]");
   const [search, setSearch] = useState("");
   const [newTitle, setNewTitle] = useState("");
   const [newDescription, setNewDescription] = useState("");
@@ -47,13 +48,19 @@ export default function AppBoardPage() {
   );
 
   async function load() {
-    if (!projectId) return;
-    const [tasksData, runsData] = await Promise.all([
+    if (!projectId || !workspaceId) return;
+    const [tasksData, runsData, projectsData] = await Promise.all([
       apiFetch<{ tasks: Task[] }>(`/projects/${projectId}/tasks`),
-      apiFetch<{ runs: AgentRun[] }>(`/projects/${projectId}/runs`)
+      apiFetch<{ runs: AgentRun[] }>(`/projects/${projectId}/runs`),
+      apiFetch<{ projects: { id: string; name: string }[] }>(
+        `/workspaces/${workspaceId}/projects`
+      )
     ]);
+
+    const currentProject = projectsData.projects.find((project) => project.id === projectId);
     setTasks(tasksData.tasks);
     setRuns(runsData.runs);
+    setProjectName(currentProject?.name || "[untitled]");
   }
 
   useEffect(() => {
@@ -161,7 +168,7 @@ export default function AppBoardPage() {
   return (
     <div className="appBoard">
       <AppSidebar
-        projectTitle="[untitled]"
+        projectTitle={projectName}
         view={view}
         onViewChange={setView}
         onNewTaskClick={() => setNewTaskPanelOpen(true)}
@@ -181,6 +188,7 @@ export default function AppBoardPage() {
           {view === "board" ? (
             <BoardView
               tasks={filteredTasks}
+              projectName={projectName}
               onUpdateStatus={updateStatus}
               onDelete={deleteTask}
               onRun={runTask}
@@ -189,6 +197,7 @@ export default function AppBoardPage() {
           ) : (
             <ListView
               tasks={filteredTasks}
+              projectName={projectName}
               onOpen={openTask}
               onRun={runTask}
             />
