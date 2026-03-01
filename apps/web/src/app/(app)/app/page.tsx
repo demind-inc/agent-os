@@ -40,6 +40,8 @@ export default function AppBoardPage() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [selectedAgentId, setSelectedAgentId] = useState("");
   const [suggestedSkills, setSuggestedSkills] = useState<string[]>([]);
+  const [isCreatingTask, setIsCreatingTask] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState<string | null>(null);
 
   const projectId = useMemo(
     () => (typeof window !== "undefined" ? localStorage.getItem("agentos_project_id") || "" : ""),
@@ -152,20 +154,25 @@ export default function AppBoardPage() {
 
   async function createTask(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!projectId || !newTitle || !selectedAgentId) return;
-    await apiFetch(`/projects/${projectId}/tasks`, {
-      method: "POST",
-      body: JSON.stringify({
-        title: newTitle,
-        description: newDescription,
-        assigned_agent_id: selectedAgentId
-      })
-    });
-    setNewTitle("");
-    setNewDescription("");
-    setSelectedAgentId(agents[0]?.id ?? "");
-    setNewTaskPanelOpen(false);
-    await load();
+    if (isCreatingTask || !projectId || !newTitle || !selectedAgentId) return;
+    setIsCreatingTask(true);
+    try {
+      await apiFetch(`/projects/${projectId}/tasks`, {
+        method: "POST",
+        body: JSON.stringify({
+          title: newTitle,
+          description: newDescription,
+          assigned_agent_id: selectedAgentId
+        })
+      });
+      setNewTitle("");
+      setNewDescription("");
+      setSelectedAgentId(agents[0]?.id ?? "");
+      setNewTaskPanelOpen(false);
+      await load();
+    } finally {
+      setIsCreatingTask(false);
+    }
   }
 
   async function updateStatus(taskId: string, status: TaskStatus) {
@@ -209,6 +216,19 @@ export default function AppBoardPage() {
     });
     await load();
   }
+
+  function handleTaskUpdate(updatedTask: Task) {
+    setTasks((prev) =>
+      prev.map((t) => (t.id === updatedTask.id ? updatedTask : t))
+    );
+    setSnackbarMessage("Task updated");
+  }
+
+  useEffect(() => {
+    if (!snackbarMessage) return;
+    const t = setTimeout(() => setSnackbarMessage(null), 3000);
+    return () => clearTimeout(t);
+  }, [snackbarMessage]);
 
   return (
     <div className="appBoard">
@@ -261,6 +281,7 @@ export default function AppBoardPage() {
           onAgentChange={setSelectedAgentId}
           suggestedSkills={suggestedSkills}
           onSubmit={createTask}
+          isSubmitting={isCreatingTask}
           onClose={() => {
             setNewTaskPanelOpen(false);
             setNewTitle("");
@@ -274,10 +295,19 @@ export default function AppBoardPage() {
           task={activeTask}
           logs={logs}
           artifacts={artifacts}
-          workspaceId={workspaceId}
           onClose={() => setActiveTaskId(null)}
           onReview={review}
+          onDelete={async (taskId) => {
+            await deleteTask(taskId);
+            setActiveTaskId(null);
+          }}
+          onTaskUpdate={handleTaskUpdate}
         />
+      )}
+      {snackbarMessage && (
+        <div className="appBoard__snackbar" role="status" aria-live="polite">
+          {snackbarMessage}
+        </div>
       )}
     </div>
   );

@@ -16,3 +16,29 @@
   overflow: auto;
   padding: 24px;
 }
+
+.appBoard__snackbar {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 12px 20px;
+  background: var(--text-primary, #1a1a1a);
+  color: var(--text-inverse, #fff);
+  font-size: 14px;
+  border-radius: var(--radius-md, 8px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 50;
+  animation: appBoardSnackbarIn 0.25s ease-out;
+}
+
+@keyframes appBoardSnackbarIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}

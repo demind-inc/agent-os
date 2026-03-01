@@ -23,10 +23,11 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
   const token = await getAccessToken();
 
+  const hasBody = init?.body != null && init.body !== "";
   const res = await fetch(`${apiUrl}${path}`, {
     ...init,
     headers: {
-      "Content-Type": "application/json",
+      ...(hasBody ? { "Content-Type": "application/json" } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(init?.headers || {})
     }

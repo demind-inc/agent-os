@@ -9327,87 +9327,6 @@
                         },
                         {
                           "type": "frame",
-                          "id": "hyltb",
-                          "name": "rpDetailSection3",
-                          "width": "fill_container",
-                          "layout": "vertical",
-                          "gap": 8,
-                          "children": [
-                            {
-                              "type": "text",
-                              "id": "8BjuF",
-                              "name": "rpDetailSection3Title",
-                              "fill": "$text-muted",
-                              "content": "INTEGRATIONS",
-                              "fontFamily": "Inter",
-                              "fontSize": 11,
-                              "fontWeight": "600",
-                              "letterSpacing": 0.8
-                            },
-                            {
-                              "type": "frame",
-                              "id": "okZOp",
-                              "name": "rpDetailIntegration",
-                              "width": "fill_container",
-                              "fill": "$bg-secondary",
-                              "cornerRadius": 8,
-                              "stroke": {
-                                "thickness": 1,
-                                "fill": "$border-light"
-                              },
-                              "gap": 10,
-                              "padding": [
-                                10,
-                                12
-                              ],
-                              "alignItems": "center",
-                              "children": [
-                                {
-                                  "type": "icon_font",
-                                  "id": "I6OkQ",
-                                  "name": "rpDetailIntIcon",
-                                  "width": 18,
-                                  "height": 18,
-                                  "iconFontName": "github",
-                                  "iconFontFamily": "lucide",
-                                  "fill": "$text-primary"
-                                },
-                                {
-                                  "type": "frame",
-                                  "id": "qUa7T",
-                                  "name": "rpDetailIntInfo",
-                                  "width": "fill_container",
-                                  "layout": "vertical",
-                                  "gap": 2,
-                                  "children": [
-                                    {
-                                      "type": "text",
-                                      "id": "KY7HZ",
-                                      "name": "rpDetailIntName",
-                                      "fill": "$text-primary",
-                                      "content": "GitHub",
-                                      "fontFamily": "Inter",
-                                      "fontSize": 13,
-                                      "fontWeight": "500"
-                                    },
-                                    {
-                                      "type": "text",
-                                      "id": "92i4K",
-                                      "name": "rpDetailIntStatus",
-                                      "fill": "$text-muted",
-                                      "content": "Connected to repo: agentos/marketing",
-                                      "fontFamily": "Inter",
-                                      "fontSize": 11,
-                                      "fontWeight": "normal"
-                                    }
-                                  ]
-                                }
-                              ]
-                            }
-                          ]
-                        },
-                        {
-                          "type": "frame",
                           "id": "0EQKV",
                           "name": "rpDetailSection4",
                           "width": "fill_container",
@@ -11973,7 +11892,8 @@
                   "fill": "$text-secondary",
                   "content": "Manage your workspace details and preferences.",
                   "fontFamily": "Inter",
-                  "fontSize": 14
+                  "fontSize": 14,
+                  "fontWeight": "normal"
                 }
               ]
             },
@@ -12059,7 +11979,8 @@
                                   "fill": "$text-primary",
                                   "content": "Acme Inc",
                                   "fontFamily": "Inter",
-                                  "fontSize": 14
+                                  "fontSize": 14,
+                                  "fontWeight": "normal"
                                 }
                               ]
                             }
@@ -12107,7 +12028,8 @@
                                   "fill": "$text-muted",
                                   "content": "agentos.app/",
                                   "fontFamily": "Inter",
-                                  "fontSize": 14
+                                  "fontSize": 14,
+                                  "fontWeight": "normal"
                                 },
                                 {
                                   "type": "text",
@@ -12116,7 +12038,8 @@
                                   "fill": "$text-primary",
                                   "content": "acme-inc",
                                   "fontFamily": "Inter",
-                                  "fontSize": 14
+                                  "fontSize": 14,
+                                  "fontWeight": "normal"
                                 }
                               ]
                             }
@@ -12236,7 +12159,8 @@
                               "fill": "$text-muted",
                               "content": "PNG, JPG up to 2MB",
                               "fontFamily": "Inter",
-                              "fontSize": 12
+                              "fontSize": 12,
+                              "fontWeight": "normal"
                             }
                           ]
                         }
@@ -12310,7 +12234,8 @@
                               "fill": "$text-secondary",
                               "content": "Once deleted, all data will be permanently removed.",
                               "fontFamily": "Inter",
-                              "fontSize": 12
+                              "fontSize": 12,
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -12788,7 +12713,8 @@
                       "fill": "$text-secondary",
                       "content": "Configure and manage your AI agents.",
                       "fontFamily": "Inter",
-                      "fontSize": 14
+                      "fontSize": 14,
+                      "fontWeight": "normal"
                     }
                   ]
                 },
@@ -12902,7 +12828,8 @@
                           "width": "fill_container",
                           "content": "Breaks down complex tasks into actionable steps and creates project timelines.",
                           "fontFamily": "Inter",
-                          "fontSize": 13
+                          "fontSize": 13,
+                          "fontWeight": "normal"
                         }
                       ]
                     },
@@ -13060,7 +12987,8 @@
                           "width": "fill_container",
                           "content": "Creates and edits written content including reports, documentation, and marketing copy.",
                           "fontFamily": "Inter",
-                          "fontSize": 13
+                          "fontSize": 13,
+                          "fontWeight": "normal"
                         }
                       ]
                     },
@@ -13218,7 +13146,8 @@
                           "width": "fill_container",
                           "content": "Gathers information from various sources and synthesizes findings into actionable insights.",
                           "fontFamily": "Inter",
-                          "fontSize": 13
+                          "fontSize": 13,
+                          "fontWeight": "normal"
                         }
                       ]
                     },
@@ -13687,7 +13616,8 @@
                   "fill": "$text-secondary",
                   "content": "Connect your workspace with external services.",
                   "fontFamily": "Inter",
-                  "fontSize": 14
+                  "fontSize": 14,
+                  "fontWeight": "normal"
                 }
               ]
             },
@@ -13777,7 +13707,8 @@
                                   "fill": "$text-secondary",
                                   "content": "Connect repositories and track commits",
                                   "fontFamily": "Inter",
-                                  "fontSize": 12
+                                  "fontSize": 12,
+                                  "fontWeight": "normal"
                                 }
                               ]
                             }
@@ -13927,7 +13858,8 @@
                                   "fill": "$text-secondary",
                                   "content": "Send notifications to Slack channels",
                                   "fontFamily": "Inter",
-                                  "fontSize": 12
+                                  "fontSize": 12,
+                                  "fontWeight": "normal"
                                 }
                               ]
                             }
@@ -14087,7 +14019,8 @@
                                   "fill": "$text-secondary",
                                   "content": "Sync tasks with your calendar",
                                   "fontFamily": "Inter",
-                                  "fontSize": 12
+                                  "fontSize": 12,
+                                  "fontWeight": "normal"
                                 }
                               ]
                             }
@@ -14199,7 +14132,8 @@
                                   "fill": "$text-secondary",
                                   "content": "Import and sync Jira issues",
                                   "fontFamily": "Inter",
-                                  "fontSize": 12
+                                  "fontSize": 12,
+                                  "fontWeight": "normal"
                                 }
                               ]
                             }
@@ -14626,7 +14560,8 @@
                       "fill": "$text-secondary",
                       "content": "Manage your team and their permissions.",
                       "fontFamily": "Inter",
-                      "fontSize": 14
+                      "fontSize": 14,
+                      "fontWeight": "normal"
                     }
                   ]
                 },
@@ -14817,7 +14752,8 @@
                       "fill": "$text-secondary",
                       "content": "john@company.com",
                       "fontFamily": "Inter",
-                      "fontSize": 14
+                      "fontSize": 14,
+                      "fontWeight": "normal"
                     },
                     {
                       "type": "frame",
@@ -14868,7 +14804,8 @@
                           "fill": "$text-secondary",
                           "content": "Active",
                           "fontFamily": "Inter",
-                          "fontSize": 13
+                          "fontSize": 13,
+                          "fontWeight": "normal"
                         }
                       ]
                     },
@@ -14996,7 +14933,8 @@
                       "fill": "$text-secondary",
                       "content": "sarah@company.com",
                       "fontFamily": "Inter",
-                      "fontSize": 14
+                      "fontSize": 14,
+                      "fontWeight": "normal"
                     },
                     {
                       "type": "frame",
@@ -15047,7 +14985,8 @@
                           "fill": "$text-secondary",
                           "content": "Active",
                           "fontFamily": "Inter",
-                          "fontSize": 13
+                          "fontSize": 13,
+                          "fontWeight": "normal"
                         }
                       ]
                     },
@@ -15175,7 +15114,8 @@
                       "fill": "$text-secondary",
                       "content": "mike@company.com",
                       "fontFamily": "Inter",
-                      "fontSize": 14
+                      "fontSize": 14,
+                      "fontWeight": "normal"
                     },
                     {
                       "type": "frame",
@@ -15226,7 +15166,8 @@
                           "fill": "$text-secondary",
                           "content": "Active",
                           "fontFamily": "Inter",
-                          "fontSize": 13
+                          "fontSize": 13,
+                          "fontWeight": "normal"
                         }
                       ]
                     },
@@ -15349,7 +15290,8 @@
                       "fill": "$text-secondary",
                       "content": "emily@company.com",
                       "fontFamily": "Inter",
-                      "fontSize": 14
+                      "fontSize": 14,
+                      "fontWeight": "normal"
                     },
                     {
                       "type": "frame",
@@ -15400,7 +15342,8 @@
                           "fill": "$text-secondary",
                           "content": "Pending",
                           "fontFamily": "Inter",
-                          "fontSize": 13
+                          "fontSize": 13,
+                          "fontWeight": "normal"
                         }
                       ]
                     },
@@ -15837,7 +15780,8 @@
                   "fill": "$text-secondary",
                   "content": "Configure how and when you receive notifications.",
                   "fontFamily": "Inter",
-                  "fontSize": 14
+                  "fontSize": 14,
+                  "fontWeight": "normal"
                 }
               ]
             },
@@ -15906,7 +15850,8 @@
                               "fill": "$text-secondary",
                               "content": "Get notified when tasks are assigned, completed, or need attention.",
                               "fontFamily": "Inter",
-                              "fontSize": 13
+                              "fontSize": 13,
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -15966,7 +15911,8 @@
                               "fill": "$text-secondary",
                               "content": "Receive updates when AI agents complete tasks or need approval.",
                               "fontFamily": "Inter",
-                              "fontSize": 13
+                              "fontSize": 13,
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -16026,7 +15972,8 @@
                               "fill": "$text-secondary",
                               "content": "Get a weekly summary of your workspace activity.",
                               "fontFamily": "Inter",
-                              "fontSize": 13
+                              "fontSize": 13,
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -16115,7 +16062,8 @@
                               "fill": "$text-secondary",
                               "content": "Show desktop notifications for important updates.",
                               "fontFamily": "Inter",
-                              "fontSize": 13
+                              "fontSize": 13,
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -16175,7 +16123,8 @@
                               "fill": "$text-secondary",
                               "content": "Play a sound for new notifications.",
                               "fontFamily": "Inter",
-                              "fontSize": 13
+                              "fontSize": 13,
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -16580,7 +16529,8 @@
                   "fill": "$text-secondary",
                   "content": "Manage your subscription and payment methods.",
                   "fontFamily": "Inter",
-                  "fontSize": 14
+                  "fontSize": 14,
+                  "fontWeight": "normal"
                 }
               ]
             },
@@ -16657,7 +16607,8 @@
                       "fill": "$text-secondary",
                       "content": "$29/month • Billed monthly • Renews on Mar 15, 2026",
                       "fontFamily": "Inter",
-                      "fontSize": 14
+                      "fontSize": 14,
+                      "fontWeight": "normal"
                     }
                   ]
                 },
@@ -16867,7 +16818,8 @@
                               "fill": "$text-muted",
                               "content": "Expires 12/2027",
                               "fontFamily": "Inter",
-                              "fontSize": 12
+                              "fontSize": 12,
+                              "fontWeight": "normal"
                             }
                           ]
                         },

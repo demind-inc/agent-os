@@ -13,6 +13,7 @@ type NewTaskPanelProps = {
   onAgentChange: (agentId: string) => void;
   suggestedSkills: string[];
   onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
+  isSubmitting?: boolean;
   onClose: () => void;
 };
 
@@ -26,6 +27,7 @@ export function NewTaskPanel({
   onAgentChange,
   suggestedSkills,
   onSubmit,
+  isSubmitting = false,
   onClose
 }: NewTaskPanelProps) {
   return (
@@ -126,12 +128,17 @@ export function NewTaskPanel({
           type="submit"
           form="newTaskPanelForm"
           className="newTaskPanel__btn newTaskPanel__btn--primary"
-          disabled={agents.length === 0}
+          disabled={agents.length === 0 || isSubmitting}
+          aria-busy={isSubmitting}
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-            <path d="M12 2l1.5 4.5L18 8l-4.5 1.5L12 14l-1.5-4.5L6 8l4.5-1.5L12 2zM7 16l1 3 2-2 2 2 1-3-2-2 2-2-3-1-2 2-2-2-3 1 2 2-2 2 1 3z" />
-          </svg>
-          Create Task
+          {isSubmitting ? (
+            <span className="newTaskPanel__spinner" aria-hidden />
+          ) : (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+              <path d="M12 2l1.5 4.5L18 8l-4.5 1.5L12 14l-1.5-4.5L6 8l4.5-1.5L12 2zM7 16l1 3 2-2 2 2 1-3-2-2 2-2-3-1-2 2-2-2-3 1 2 2-2 2 1 3z" />
+            </svg>
+          )}
+          {isSubmitting ? "Creating…" : "Create Task"}
         </button>
       </div>
     </aside>

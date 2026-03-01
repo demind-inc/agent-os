@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useRef, useEffect } from "react";
 import type { Task } from "@/types/domain";
 import { apiFetch } from "@/lib/api/client";
 import "./TaskDetailPanel.scss";
@@ -18,25 +19,119 @@ type TaskDetailPanelProps = {
   task: Task;
   logs: TaskLog[];
   artifacts: Artifact[];
-  workspaceId: string;
   onClose: () => void;
   onReview: (taskId: string, action: "approve" | "reject") => void;
+  onDelete: (taskId: string) => void | Promise<void>;
+  onTaskUpdate: (updatedTask: Task) => void;
 };
 
 export function TaskDetailPanel({
   task,
   logs,
   artifacts,
-  workspaceId,
   onClose,
-  onReview
+  onReview,
+  onDelete,
+  onTaskUpdate
 }: TaskDetailPanelProps) {
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [editingDescription, setEditingDescription] = useState(false);
+  const [editTitleValue, setEditTitleValue] = useState(task.title);
+  const [editDescriptionValue, setEditDescriptionValue] = useState(task.description ?? "");
+  const [isDeleting, setIsDeleting] = useState(false);
+  const titleInputRef = useRef<HTMLInputElement>(null);
+  const descriptionInputRef = useRef<HTMLTextAreaElement>(null);
+
+  async function handleDelete() {
+    if (isDeleting) return;
+    setIsDeleting(true);
+    try {
+      await Promise.resolve(onDelete(task.id));
+    } finally {
+      setIsDeleting(false);
+    }
+  }
+
+  useEffect(() => {
+    setEditTitleValue(task.title);
+    setEditDescriptionValue(task.description ?? "");
+  }, [task.id, task.title, task.description]);
+
+  useEffect(() => {
+    if (editingTitle) titleInputRef.current?.focus();
+  }, [editingTitle]);
+  useEffect(() => {
+    if (editingDescription) descriptionInputRef.current?.focus();
+  }, [editingDescription]);
+
+  async function saveTitle() {
+    setEditingTitle(false);
+    const trimmed = editTitleValue.trim();
+    if (trimmed === task.title || !trimmed) {
+      setEditTitleValue(task.title);
+      return;
+    }
+    try {
+      const updated = await apiFetch<Task>(`/tasks/${task.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ title: trimmed })
+      });
+      onTaskUpdate(updated);
+    } catch {
+      setEditTitleValue(task.title);
+    }
+  }
+
+  async function saveDescription() {
+    setEditingDescription(false);
+    const value = editDescriptionValue;
+    if (value === (task.description ?? "")) {
+      setEditDescriptionValue(task.description ?? "");
+      return;
+    }
+    try {
+      const updated = await apiFetch<Task>(`/tasks/${task.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ description: value })
+      });
+      onTaskUpdate(updated);
+    } catch {
+      setEditDescriptionValue(task.description ?? "");
+    }
+  }
+
   return (
     <section className="taskDetailPanel">
       <div className="taskDetailPanel__header">
-        <h2 className="taskDetailPanel__title">{task.title}</h2>
-        <button type="button" className="taskDetailPanel__close" onClick={onClose}>
-          Close
+        {editingTitle ? (
+          <input
+            ref={titleInputRef}
+            type="text"
+            className="taskDetailPanel__titleInput"
+            value={editTitleValue}
+            onChange={(e) => setEditTitleValue(e.target.value)}
+            onBlur={saveTitle}
+            onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+            aria-label="Task title"
+          />
+        ) : (
+          <h2
+            className="taskDetailPanel__title taskDetailPanel__titleEditable"
+            onClick={() => setEditingTitle(true)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => e.key === "Enter" && setEditingTitle(true)}
+          >
+            {task.title}
+          </h2>
+        )}
+        <button
+          type="button"
+          className="taskDetailPanel__iconBtn taskDetailPanel__close"
+          onClick={onClose}
+          aria-label="Close panel"
+        >
+          <span className="taskDetailPanel__icon" data-icon="x" aria-hidden />
         </button>
       </div>
       <div className="taskDetailPanel__statusRow">
@@ -45,30 +140,27 @@ export function TaskDetailPanel({
       <div className="taskDetailPanel__body">
         <div className="taskDetailPanel__section">
           <h4>Overview</h4>
-          <p>{task.description || "No description."}</p>
-        </div>
-        <div className="taskDetailPanel__section">
-          <h4>Integrations</h4>
-          <div className="taskDetailPanel__integration">
-            <strong>GitHub</strong>
-            <div className="row" style={{ justifyContent: "space-between", marginTop: 8 }}>
-              <span style={{ fontSize: 14, color: "var(--text-secondary)" }}>
-                Connected via OAuth
-              </span>
-              <button
-                type="button"
-                className="taskDetailPanel__btn taskDetailPanel__btnSecondary"
-                onClick={() =>
-                  apiFetch("/integrations/oauth/start", {
-                    method: "POST",
-                    body: JSON.stringify({ provider: "github", workspaceId })
-                  })
-                }
-              >
-                Configure
-              </button>
-            </div>
-          </div>
+          {editingDescription ? (
+            <textarea
+              ref={descriptionInputRef}
+              className="taskDetailPanel__descriptionInput"
+              value={editDescriptionValue}
+              onChange={(e) => setEditDescriptionValue(e.target.value)}
+              onBlur={saveDescription}
+              placeholder="No description."
+              aria-label="Task description"
+            />
+          ) : (
+            <p
+              className="taskDetailPanel__descriptionEditable"
+              onClick={() => setEditingDescription(true)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => e.key === "Enter" && setEditingDescription(true)}
+            >
+              {task.description || "No description."}
+            </p>
+          )}
         </div>
         <div className="taskDetailPanel__section">
           <h4>Execution Console</h4>
@@ -122,24 +214,41 @@ export function TaskDetailPanel({
           </div>
         </div>
       </div>
-      {task.status === "in_review" && (
-        <div className="taskDetailPanel__footer">
-          <button
-            type="button"
-            className="taskDetailPanel__btn taskDetailPanel__btnSecondary"
-            onClick={() => onReview(task.id, "reject")}
-          >
-            Request changes
-          </button>
-          <button
-            type="button"
-            className="taskDetailPanel__btn taskDetailPanel__btnPrimary"
-            onClick={() => onReview(task.id, "approve")}
-          >
-            Approve & continue
-          </button>
+      <div className="taskDetailPanel__footer">
+        <button
+          type="button"
+          className="taskDetailPanel__iconBtn taskDetailPanel__btn taskDetailPanel__btnDanger"
+          onClick={handleDelete}
+          disabled={isDeleting}
+          aria-label="Delete task"
+        >
+          {isDeleting ? (
+            <span className="taskDetailPanel__spinner" aria-hidden />
+          ) : (
+            <span className="taskDetailPanel__icon" data-icon="trash" aria-hidden />
+          )}
+        </button>
+        <div className="taskDetailPanel__footerActions">
+          {task.status === "in_review" && (
+            <>
+              <button
+                type="button"
+                className="taskDetailPanel__btn taskDetailPanel__btnSecondary"
+                onClick={() => onReview(task.id, "reject")}
+              >
+                Request changes
+              </button>
+              <button
+                type="button"
+                className="taskDetailPanel__btn taskDetailPanel__btnPrimary"
+                onClick={() => onReview(task.id, "approve")}
+              >
+                Approve & continue
+              </button>
+            </>
+          )}
         </div>
-      )}
+      </div>
     </section>
   );
 }
