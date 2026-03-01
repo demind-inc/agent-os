@@ -49,60 +49,63 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
 
 const apiBase = () => process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
+function wsBase(): string {
+  const base = apiBase();
+  return base.replace(/^http/, "ws");
+}
+
 /**
- * Subscribe to run execution stream (SSE). Call onChunk for each text chunk, onDone when stream ends.
- * No persistence during stream; server stores one row when done.
+ * Subscribe to run execution stream via WebSocket. Call onChunk for each text chunk, onDone when stream ends.
+ * Connects once per runId; no persistence during stream; server stores one row when done.
  */
-export async function apiStreamRun(
+export function apiStreamRun(
   runId: string,
   callbacks: { onChunk: (text: string) => void; onDone: () => void }
-): Promise<void> {
-  const token = await getAccessToken();
-  const res = await fetch(`${apiBase()}/runs/${runId}/stream`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  });
-  if (!res.ok || !res.body) {
-    callbacks.onDone();
-    return;
-  }
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let eventType = "";
-  let dataLines: string[] = [];
+): () => void {
+  let closed = false;
+  let ws: WebSocket | null = null;
 
-  const flushEvent = () => {
-    if (eventType === "chunk" && dataLines.length > 0) {
-      callbacks.onChunk(dataLines.join("\n"));
+  const close = () => {
+    closed = true;
+    if (ws) {
+      try {
+        ws.close();
+      } catch {
+        // ignore
+      }
+      ws = null;
     }
-    if (eventType === "done") {
-      callbacks.onDone();
-    }
-    eventType = "";
-    dataLines = [];
   };
 
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() ?? "";
-      for (const line of lines) {
-        if (line.startsWith("event:")) {
-          flushEvent();
-          eventType = line.slice(6).trim();
-        } else if (line.startsWith("data:")) {
-          dataLines.push(line.slice(5));
-        } else if (line === "") {
-          flushEvent();
+  (async () => {
+    const t = await getAccessToken();
+    if (closed) return;
+    const url = `${wsBase()}/runs/${runId}/stream${t ? `?token=${encodeURIComponent(t)}` : ""}`;
+    ws = new WebSocket(url);
+    ws.onmessage = (e) => {
+      if (closed) return;
+      try {
+        const msg = JSON.parse(e.data as string) as { event?: string; data?: string };
+        if (msg.event === "chunk" && typeof msg.data === "string") {
+          callbacks.onChunk(msg.data);
         }
+        if (msg.event === "done") {
+          callbacks.onDone();
+          close();
+        }
+      } catch {
+        // ignore parse errors
       }
-    }
-    flushEvent();
-  } finally {
-    reader.releaseLock();
-    callbacks.onDone();
-  }
+    };
+    ws.onclose = () => {
+      if (!closed) callbacks.onDone();
+      close();
+    };
+    ws.onerror = () => {
+      if (!closed) callbacks.onDone();
+      close();
+    };
+  })();
+
+  return close;
 }

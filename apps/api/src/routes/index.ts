@@ -38,7 +38,12 @@ export async function registerRoutes(app: FastifyInstance) {
 
   app.addHook("preHandler", async (request, reply) => {
     if (request.url === "/health") return;
-    const user = await getUserFromBearer(request.headers.authorization);
+    const authHeader =
+      request.headers.authorization ??
+      (typeof (request.query as { token?: string })?.token === "string"
+        ? `Bearer ${(request.query as { token: string }).token}`
+        : undefined);
+    const user = await getUserFromBearer(authHeader);
     if (!user) {
       reply.status(401).send({ error: "Unauthorized" });
       return;
@@ -405,52 +410,57 @@ export async function registerRoutes(app: FastifyInstance) {
     return run;
   });
 
-  app.get('/runs/:runId/stream', async (request, reply) => {
+  app.get('/runs/:runId/stream', { websocket: true }, (socket, request) => {
     const user = (request as any).user;
     const params = request.params as { runId: string };
-
-    const { data: run } = await adminSupabase
-      .from('agent_runs')
-      .select('id, task_id, tasks(project_id, projects(workspace_id))')
-      .eq('id', params.runId)
-      .single();
-    if (!run) return reply.status(404).send({ error: 'Run not found' });
-    const workspaceId = (run as any).tasks?.projects?.workspace_id as string | undefined;
-    if (!workspaceId) return reply.status(404).send({ error: 'Run task not found' });
-    await assertWorkspaceMember(user.id, workspaceId);
-
-    const res = reply.raw;
-    const origin = (request.headers.origin as string) || '*';
-    res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no');
-    res.flushHeaders?.();
-
     const runId = params.runId;
-    const send: RunStreamSender = (event, data) => {
+
+    void (async () => {
+      const { data: run } = await adminSupabase
+        .from('agent_runs')
+        .select('id, task_id')
+        .eq('id', runId)
+        .single();
+      if (!run) {
+        socket.close(1008, 'Run not found');
+        return;
+      }
+      const { data: task } = await adminSupabase
+        .from('tasks')
+        .select('project_id, projects(workspace_id)')
+        .eq('id', run.task_id)
+        .single();
+      if (!task) {
+        socket.close(1008, 'Run task not found');
+        return;
+      }
+      const workspaceId = (task as any).projects?.workspace_id as string | undefined;
+      if (!workspaceId) {
+        socket.close(1008, 'Task project not found');
+        return;
+      }
       try {
-        const payload = data.includes('\n') ? data.split('\n').map((line) => `data: ${line}`).join('\n') : `data: ${data}`;
-        res.write(`event: ${event}\n${payload}\n\n`);
-        res.flush?.();
-        if (event === 'done') {
-          res.end();
+        await assertWorkspaceMember(user.id, workspaceId);
+      } catch {
+        socket.close(1008, 'Access denied');
+        return;
+      }
+
+      const send: RunStreamSender = (event, data) => {
+        try {
+          if (socket.readyState !== 1 /* OPEN */) return;
+          socket.send(JSON.stringify({ event, data }));
+          if (event === 'done') {
+            socket.close();
+            unregisterRunStream(runId, send);
+          }
+        } catch (_) {
           unregisterRunStream(runId, send);
         }
-      } catch (_) {
-        // client may have disconnected
-      }
-    };
-    registerRunStream(runId, send);
-
-    request.raw.on('close', () => {
-      unregisterRunStream(runId, send);
-    });
-
-    // Keep connection open; runner pushes chunks and sends "done" when finished
-    await new Promise<void>(() => {});
+      };
+      registerRunStream(runId, send);
+      socket.on('close', () => unregisterRunStream(runId, send));
+    })();
   });
 
   app.get('/tasks/:taskId/logs', async (request, reply) => {

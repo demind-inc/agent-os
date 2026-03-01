@@ -53,6 +53,13 @@ export default function AppBoardPage() {
     anthropic?: boolean;
     openai?: boolean;
   }>({});
+  /** Run id from POST /run response so we connect to stream before load() completes. */
+  const [pendingStreamRunId, setPendingStreamRunId] = useState<string | null>(
+    null
+  );
+  const [pendingStreamTaskId, setPendingStreamTaskId] = useState<string | null>(
+    null
+  );
 
   const projectId = useMemo(
     () =>
@@ -222,7 +229,24 @@ export default function AppBoardPage() {
       )
     : null;
 
-  const isActiveTaskRunning = Boolean(activeRun);
+  const isActiveTaskRunning = Boolean(
+    activeRun ||
+      (activeTaskId === pendingStreamTaskId && pendingStreamRunId)
+  );
+  const activeRunId =
+    activeRun?.id ??
+    (activeTaskId === pendingStreamTaskId ? pendingStreamRunId : null);
+
+  useEffect(() => {
+    if (activeRun?.id === pendingStreamRunId) {
+      setPendingStreamRunId(null);
+      setPendingStreamTaskId(null);
+    }
+    if (activeTaskId !== pendingStreamTaskId) {
+      setPendingStreamTaskId(null);
+      setPendingStreamRunId(null);
+    }
+  }, [activeRun?.id, activeTaskId, pendingStreamRunId, pendingStreamTaskId]);
 
   const loadTaskDetails = useCallback(async (taskId: string) => {
     const [logsData, artifactsData] = await Promise.all([
@@ -309,11 +333,13 @@ export default function AppBoardPage() {
 
   async function runTask(taskId: string) {
     const task = tasks.find((t) => t.id === taskId);
-    await apiFetch(`/tasks/${taskId}/run`, {
+    const run = await apiFetch<{ id: string }>(`/tasks/${taskId}/run`, {
       method: "POST",
       body: JSON.stringify({ agentId: task?.assigned_agent_id ?? undefined }),
     });
-    await load();
+    setPendingStreamRunId(run.id);
+    setPendingStreamTaskId(taskId);
+    load().catch(console.error);
   }
 
   async function openTask(taskId: string) {
@@ -419,7 +445,7 @@ export default function AppBoardPage() {
           artifacts={artifacts}
           onRun={runTask}
           isRunning={isActiveTaskRunning}
-          activeRunId={activeRun?.id ?? null}
+          activeRunId={activeRunId}
           onStreamDone={() => activeTaskId && loadTaskDetails(activeTaskId)}
           onClose={() => setActiveTaskId(null)}
           onReview={review}

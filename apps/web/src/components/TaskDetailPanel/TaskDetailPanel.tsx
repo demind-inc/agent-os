@@ -117,29 +117,36 @@ export function TaskDetailPanel({
   const [streamedText, setStreamedText] = useState("");
   const titleInputRef = useRef<HTMLInputElement>(null);
   const descriptionInputRef = useRef<HTMLTextAreaElement>(null);
+  const onStreamDoneRef = useRef(onStreamDone);
+  const subscribedRunIdRef = useRef<string | null>(null);
 
-  // Subscribe to run stream while AI is working; do not persist chunks, only show in UI
+  onStreamDoneRef.current = onStreamDone;
+
+  // Single WebSocket connection per run; only when isRunning and activeRunId are set
   useEffect(() => {
     if (!isRunning || !activeRunId) {
       if (!isRunning) setStreamedText("");
+      subscribedRunIdRef.current = null;
       return;
     }
+    if (subscribedRunIdRef.current === activeRunId) return;
+    subscribedRunIdRef.current = activeRunId;
     setStreamedText("");
-    let cancelled = false;
-    apiStreamRun(activeRunId, {
+
+    const close = apiStreamRun(activeRunId, {
       onChunk: (text) => {
-        if (!cancelled) setStreamedText((prev) => prev + text);
+        setStreamedText((prev) => prev + text);
       },
       onDone: () => {
-        if (!cancelled) onStreamDone?.();
+        subscribedRunIdRef.current = null;
+        onStreamDoneRef.current?.();
       },
-    }).catch(() => {
-      if (!cancelled) onStreamDone?.();
     });
     return () => {
-      cancelled = true;
+      close();
+      subscribedRunIdRef.current = null;
     };
-  }, [isRunning, activeRunId, onStreamDone]);
+  }, [isRunning, activeRunId]);
 
   async function handleDelete() {
     if (isDeleting) return;
