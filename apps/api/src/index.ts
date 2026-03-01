@@ -1,4 +1,5 @@
-import 'dotenv/config';
+import './loadEnv.js';
+
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { registerRoutes } from './routes/index.js';

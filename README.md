@@ -47,21 +47,31 @@ agentos/
 
 ## Environment Variables
 
-Copy `.env.example` to `.env`:
+**Next.js (root)**  
+Copy the root `.env.example` to `.env` at the repo root for the web app:
 
 ```bash
 cp .env.example .env
 ```
 
-Set:
+**Fastify API**  
+The API loads its env from `apps/api/.env`. Copy the API example and fill in values:
 
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `NEXT_PUBLIC_API_URL` (default: `http://localhost:4000`)
-- `SUPABASE_URL`
-- `SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `API_PORT` (default: `4000`)
+```bash
+cp apps/api/.env.example apps/api/.env
+```
+
+**Root `.env`** (web app):
+
+- `NEXT_PUBLIC_SUPABASE_URL` — Supabase project URL
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Supabase anon key (auth/realtime)
+- `NEXT_PUBLIC_API_URL` — (default: `http://localhost:4000`) — Fastify API URL for the frontend
+
+**`apps/api/.env`** (API only):
+
+- `NEXT_PUBLIC_SUPABASE_URL` — same Supabase project URL
+- `SUPABASE_SERVICE_ROLE_KEY` — Supabase service role key (never expose to the client)
+- `API_PORT` — (default: `4000`)
 
 ## Install
 
