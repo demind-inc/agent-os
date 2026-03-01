@@ -364,6 +364,46 @@
   mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'%3E%3Cpath d='M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4'/%3E%3Cpolyline points='16 17 21 12 16 7'/%3E%3Cline x1='21' y1='12' x2='9' y2='12'/%3E%3C/svg%3E") center/contain no-repeat;
 }
 
+.settingsPage__dangerSection {
+  padding-top: 24px;
+  margin-top: 24px;
+  border-top: 1px solid var(--border-light);
+}
+
+.settingsPage__dangerTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 4px 0;
+}
+
+.settingsPage__dangerText {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 0 0 12px 0;
+}
+
+.settingsPage__deleteAccountBtn {
+  padding: 10px 16px;
+  border: 1px solid var(--accent-red);
+  border-radius: 8px;
+  background: var(--bg-primary);
+  color: var(--accent-red);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: var(--danger-bg);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
 .settingsPage__loading,
 .settingsPage__comingSoon {
   color: var(--text-secondary);

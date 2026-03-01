@@ -31,11 +31,34 @@ export async function registerRoutes(app: FastifyInstance) {
   app.get('/profile', async (request, reply) => {
     const user = (request as any).user;
     const query = request.query as { workspaceId?: string };
-    const { data: profile, error: profileError } = await adminSupabase
+    let { data: profile, error: profileError } = await adminSupabase
       .from('profiles')
       .select('id, email, full_name, avatar_url')
       .eq('id', user.id)
       .single();
+
+    // Create profile if missing (e.g. trigger didn't run, or user created before migration)
+    if (profileError || !profile) {
+      const fullName = (user.user_metadata?.full_name as string) || (user.email ? user.email.split('@')[0] : null);
+      const { error: insertError } = await adminSupabase.from('profiles').insert({
+        id: user.id,
+        email: user.email ?? '',
+        full_name: fullName
+      });
+      if (insertError) {
+        if ((insertError as { code?: string }).code === '23505') {
+          const result = await adminSupabase.from('profiles').select('id, email, full_name, avatar_url').eq('id', user.id).single();
+          profile = result.data;
+          profileError = result.error;
+        } else {
+          return reply.status(500).send({ error: 'Failed to create profile' });
+        }
+      } else {
+        const result = await adminSupabase.from('profiles').select('id, email, full_name, avatar_url').eq('id', user.id).single();
+        profile = result.data;
+        profileError = result.error;
+      }
+    }
 
     if (profileError || !profile) return reply.status(404).send({ error: 'Profile not found' });
 
@@ -65,6 +88,37 @@ export async function registerRoutes(app: FastifyInstance) {
 
     if (error || !data) return reply.status(400).send({ error: error?.message || 'Failed to update profile' });
     return data;
+  });
+
+  app.delete('/profile', async (request, reply) => {
+    const user = (request as any).user;
+    const userId = user.id;
+
+    // Clear or reassign references so we can delete the auth user (no CASCADE on these).
+    await adminSupabase.from('tasks').update({ assignee_id: null }).eq('assignee_id', userId);
+
+    const { data: projects } = await adminSupabase.from('projects').select('id, workspace_id').eq('created_by', userId);
+    if (projects?.length) {
+      const workspaceIds = [...new Set(projects.map((p) => p.workspace_id))];
+      for (const wid of workspaceIds) {
+        const { data: w } = await adminSupabase.from('workspaces').select('owner_id').eq('id', wid).single();
+        if (w?.owner_id && w.owner_id !== userId) {
+          await adminSupabase.from('projects').update({ created_by: w.owner_id }).eq('workspace_id', wid).eq('created_by', userId);
+        }
+      }
+    }
+
+    await adminSupabase.from('workspace_skills').delete().eq('created_by', userId);
+    await adminSupabase.from('integration_sync_jobs').delete().eq('triggered_by', userId);
+    await adminSupabase.from('workspace_members').delete().eq('user_id', userId);
+    await adminSupabase.from('workspaces').delete().eq('owner_id', userId);
+    await adminSupabase.from('user_settings').delete().eq('user_id', userId);
+    await adminSupabase.from('profiles').delete().eq('id', userId);
+
+    const { error: authError } = await adminSupabase.auth.admin.deleteUser(userId);
+    if (authError) return reply.status(500).send({ error: authError.message });
+
+    return { ok: true };
   });
 
   app.get('/workspaces', async (request, reply) => {

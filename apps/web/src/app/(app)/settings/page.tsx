@@ -38,6 +38,7 @@ export default function SettingsPage() {
   const [activeSection, setActiveSection] = useState<"profile" | "workspace" | "team" | "agents" | "integrations" | "notifications" | "billing">("profile");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [deleting, setDeleting] = useState(false);
   const workspaceId = typeof window !== "undefined" ? localStorage.getItem("agentos_workspace_id") || "" : "";
 
   const loadProfile = useCallback(async () => {
@@ -88,6 +89,25 @@ export default function SettingsPage() {
     localStorage.removeItem("agentos_workspace_id");
     localStorage.removeItem("agentos_project_id");
     router.push("/login");
+  }
+
+  async function handleDeleteAccount() {
+    if (!confirm("Permanently delete your account and all data? This cannot be undone.")) return;
+    setDeleting(true);
+    try {
+      await apiFetch("/profile", { method: "DELETE" });
+      localStorage.removeItem("agentos_access_token");
+      localStorage.removeItem("agentos_workspace_id");
+      localStorage.removeItem("agentos_project_id");
+      const supabase = createClient();
+      await supabase.auth.signOut();
+      router.push("/login");
+    } catch (err) {
+      console.error(err);
+      alert("Failed to delete account. Please try again.");
+    } finally {
+      setDeleting(false);
+    }
   }
 
   if (loading) {
@@ -229,6 +249,21 @@ export default function SettingsPage() {
                 <button type="button" className="settingsPage__logoutBtn" onClick={handleLogout}>
                   <span className="settingsPage__logoutIcon" aria-hidden />
                   Log out
+                </button>
+              </div>
+
+              <div className="settingsPage__dangerSection">
+                <h3 className="settingsPage__dangerTitle">Testing: Delete account</h3>
+                <p className="settingsPage__dangerText">
+                  Permanently remove your profile and auth user. All your data will be deleted.
+                </p>
+                <button
+                  type="button"
+                  className="settingsPage__deleteAccountBtn"
+                  onClick={handleDeleteAccount}
+                  disabled={deleting}
+                >
+                  {deleting ? "Deleting…" : "Delete account"}
                 </button>
               </div>
             </>
