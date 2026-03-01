@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/lib/api/client";
 import { createClient } from "@/lib/supabase/client";
 import type { Task, TaskStatus, AgentRun } from "@/types/domain";
+import { AppSidebar } from "@/components/AppSidebar/AppSidebar";
 import { TopBar } from "@/components/TopBar/TopBar";
 import { NewTaskForm } from "@/components/NewTaskForm/NewTaskForm";
 import { BoardView } from "@/components/BoardView/BoardView";
@@ -22,7 +23,7 @@ type TaskLog = {
 type Artifact = { id: string; type: string; title: string; url: string | null };
 
 export default function AppBoardPage() {
-  const [view, setView] = useState<"board" | "list">("board");
+  const [view, setView] = useState<"board" | "list" | "newtask">("board");
   const [tasks, setTasks] = useState<Task[]>([]);
   const [search, setSearch] = useState("");
   const [newTitle, setNewTitle] = useState("");
@@ -87,6 +88,7 @@ export default function AppBoardPage() {
     });
     setNewTitle("");
     setNewDescription("");
+    setView("board");
     await load();
   }
 
@@ -133,44 +135,65 @@ export default function AppBoardPage() {
   }
 
   return (
-    <main className="appBoard">
-      <TopBar
+    <div className="appBoard">
+      <AppSidebar
+        projectTitle="[untitled]"
         view={view}
         onViewChange={setView}
-        search={search}
-        onSearchChange={setSearch}
-        onNewTaskClick={() =>
-          document.getElementById("new-task")?.scrollIntoView({ behavior: "smooth" })
-        }
+        onNewTaskClick={() => setView("newtask")}
+        runs={runs}
+        tasks={tasks}
       />
-
-      <section className="appBoard__content page">
-        <NewTaskForm
-          title={newTitle}
-          description={newDescription}
-          onTitleChange={setNewTitle}
-          onDescriptionChange={setNewDescription}
-          onSubmit={createTask}
-        />
-
-        {view === "board" ? (
-          <BoardView
-            tasks={filteredTasks}
-            runs={runs}
-            onUpdateStatus={updateStatus}
-            onDelete={deleteTask}
-            onRun={runTask}
-            onOpen={openTask}
-          />
-        ) : (
-          <ListView
-            tasks={filteredTasks}
-            onOpen={openTask}
-            onRun={runTask}
+      <div className="appBoard__main">
+        {view !== "newtask" && (
+          <TopBar
+            view={view}
+            onViewChange={(v) => setView(v)}
+            search={search}
+            onSearchChange={setSearch}
+            onNewTaskClick={() => setView("newtask")}
           />
         )}
-      </section>
-
+        <section className={`appBoard__content ${view === "newtask" ? "appBoard__content--newTask" : ""}`}>
+          {view === "newtask" ? (
+            <div className="appBoard__newTaskWrap">
+              <NewTaskForm
+                title={newTitle}
+                description={newDescription}
+                onTitleChange={setNewTitle}
+                onDescriptionChange={setNewDescription}
+                onSubmit={createTask}
+              />
+            </div>
+          ) : (
+            <>
+              <NewTaskForm
+                title={newTitle}
+                description={newDescription}
+                onTitleChange={setNewTitle}
+                onDescriptionChange={setNewDescription}
+                onSubmit={createTask}
+              />
+              {view === "board" ? (
+                <BoardView
+                  tasks={filteredTasks}
+                  onUpdateStatus={updateStatus}
+                  onDelete={deleteTask}
+                  onRun={runTask}
+                  onOpen={openTask}
+                />
+              ) : (
+                <ListView
+                  tasks={filteredTasks}
+                  onOpen={openTask}
+                  onRun={runTask}
+                />
+              )}
+            </>
+          )}
+        </section>
+        {view !== "newtask" && <BottomInputBar />}
+      </div>
       {activeTask && (
         <TaskDetailPanel
           task={activeTask}
@@ -181,8 +204,6 @@ export default function AppBoardPage() {
           onReview={review}
         />
       )}
-
-      <BottomInputBar />
-    </main>
+    </div>
   );
 }

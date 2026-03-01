@@ -27,10 +27,25 @@ export function StatusColumn({
   onRun,
   onOpen
 }: StatusColumnProps) {
+  const title = label.toUpperCase().replace(/_/g, " ");
+  const isBacklog = statusKey === "backlog";
+  const showDot =
+    statusKey === "ai_working" ||
+    statusKey === "needs_human_input" ||
+    statusKey === "failed";
+
   return (
-    <div className={`statusColumn ${className}`}>
+    <div className={`statusColumn ${className}`} data-status={statusKey}>
       <div className="statusColumn__header">
-        <strong>{label}</strong>
+        {showDot && <span className="statusColumn__dot" aria-hidden />}
+        {isBacklog && (
+          <span className="statusColumn__plus" aria-hidden>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+            </svg>
+          </span>
+        )}
+        <h3 className="statusColumn__title">{title}</h3>
         <span className="statusColumn__count">{tasks.length}</span>
       </div>
       <div className="statusColumn__list column">

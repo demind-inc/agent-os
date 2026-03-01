@@ -1,40 +1,142 @@
 .taskCard {
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  padding: 10px;
-  background: #fff;
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  cursor: pointer;
+  transition: box-shadow 0.15s;
+
+  &:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  }
 
   &__header {
     display: flex;
+    align-items: center;
     justify-content: space-between;
-    align-items: flex-start;
     gap: 8px;
   }
 
+  &__icon {
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-sm);
+    background: #f3f4f6;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  &__statusBadge {
+    font-size: 11px;
+    font-weight: 500;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: #dcfce7;
+    color: #166534;
+  }
+
+  &__statusBadge--backlog {
+    background: #f3f4f6;
+    color: var(--text-secondary);
+  }
+
+  &__statusBadge--needs_human_input {
+    background: #fef3c7;
+    color: #92400e;
+  }
+
+  &__statusBadge--in_review {
+    background: #e5e7eb;
+    color: var(--text-secondary);
+  }
+
+  &__statusBadge--failed {
+    background: #fee2e2;
+    color: #991b1b;
+  }
+
   &__title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
     margin: 0;
-    font-size: 0.95rem;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
 
   &__desc {
-    margin: 6px 0;
-    font-size: 0.85rem;
-    color: #6b7280;
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin: 0;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
 
-  &__skills {
+  &__progress {
     display: flex;
-    flex-wrap: wrap;
+    flex-direction: column;
     gap: 6px;
-    margin-bottom: 8px;
   }
 
-  &__skill {
-    padding: 2px 8px;
-    border-radius: 999px;
+  &__progressLabel {
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  &__progressBar {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border-light);
+    overflow: hidden;
+  }
+
+  &__progressFill {
+    height: 100%;
+    border-radius: 2px;
+    background: var(--accent-green);
+    width: 0%;
+  }
+
+  &__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: auto;
+  }
+
+  &__projectBadge {
     font-size: 11px;
-    background: #eef2ff;
-    color: #3730a3;
+    font-weight: 500;
+    padding: 4px 8px;
+    border-radius: 4px;
+    background: #f3f4f6;
+    color: var(--text-secondary);
+  }
+
+  &__assignee {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--accent-purple);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   &__actions {
@@ -42,18 +144,22 @@
     flex-wrap: wrap;
     gap: 6px;
     margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-light);
   }
 
   &__btn {
     padding: 4px 10px;
     font-size: 12px;
-    border: 1px solid #e5e7eb;
-    border-radius: 6px;
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-sm);
     background: #fff;
+    color: var(--text-secondary);
     cursor: pointer;
 
     &:hover {
-      background: #f9fafb;
+      background: var(--bg-secondary);
+      color: var(--text-primary);
     }
   }
 }

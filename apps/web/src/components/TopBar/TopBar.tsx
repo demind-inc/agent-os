@@ -22,23 +22,27 @@ export function TopBar({
   return (
     <header className="topbar">
       <div className="topbar__left">
-        <strong>[untitled]</strong>
-        <button
-          type="button"
-          className={`topbar__btn ${view === "board" ? "topbar__btnPrimary" : ""}`}
-          onClick={() => onViewChange("board")}
-        >
-          Board View
-        </button>
-        <button
-          type="button"
-          className={`topbar__btn ${view === "list" ? "topbar__btnPrimary" : ""}`}
-          onClick={() => onViewChange("list")}
-        >
-          List View
-        </button>
-        <button type="button" className="topbar__btn topbar__btnPrimary" onClick={onNewTaskClick}>
-          + New Task
+        <div className="topbar__viewToggle">
+          <button
+            type="button"
+            className={`topbar__viewBtn ${view === "board" ? "topbar__viewBtn--active" : ""}`}
+            onClick={() => onViewChange("board")}
+          >
+            Board
+          </button>
+          <button
+            type="button"
+            className={`topbar__viewBtn ${view === "list" ? "topbar__viewBtn--active" : ""}`}
+            onClick={() => onViewChange("list")}
+          >
+            List
+          </button>
+        </div>
+        <button type="button" className="topbar__newTaskBtn" onClick={onNewTaskClick}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+          </svg>
+          New Task
         </button>
       </div>
       <div className="topbar__right">
@@ -48,7 +52,14 @@ export function TopBar({
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
         />
-        <div className="topbar__avatar">{userInitials}</div>
+        <button type="button" className="topbar__notifBtn" aria-label="Notifications">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+            <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z" />
+          </svg>
+        </button>
+        <div className="topbar__avatar" title={userInitials}>
+          {userInitials}
+        </div>
       </div>
     </header>
   );

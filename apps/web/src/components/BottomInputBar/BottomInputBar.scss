@@ -1,21 +1,42 @@
 .bottomInputBar {
-  position: fixed;
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: 20px;
-  width: min(680px, 92vw);
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 999px;
-  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--border-light);
+  background: var(--bg-primary);
+  flex-shrink: 0;
+}
+
+.bottomInputBar__input {
   display: flex;
   align-items: center;
   gap: 10px;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
-  z-index: 10;
+  padding: 12px 16px;
+  border: 1px solid var(--border-light);
+  border-radius: 24px;
+  background: var(--bg-secondary);
+  max-width: 480px;
+  flex: 1;
+  color: var(--text-muted);
+  font-size: 14px;
+}
 
-  &__placeholder {
-    color: #9ca3af;
-    font-size: 0.9rem;
+.bottomInputBar__addBtn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: var(--accent-green);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+
+  &:hover {
+    background: var(--btn-primary-hover);
   }
 }

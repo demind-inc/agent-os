@@ -1,8 +1,13 @@
 .boardView {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(220px, 1fr)) 260px;
-  gap: 12px;
-  align-items: start;
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
   overflow-x: auto;
+  padding-bottom: 8px;
   margin-top: 12px;
+}
+
+.boardView > * {
+  flex: 0 0 280px;
+  min-width: 280px;
 }

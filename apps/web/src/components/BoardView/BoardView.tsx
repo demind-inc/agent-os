@@ -1,8 +1,7 @@
 "use client";
 
-import type { Task, TaskStatus, AgentRun } from "@/types/domain";
+import type { Task, TaskStatus } from "@/types/domain";
 import { StatusColumn } from "@/components/StatusColumn/StatusColumn";
-import { ActiveAgentsSidebar } from "@/components/ActiveAgentsSidebar/ActiveAgentsSidebar";
 import "./BoardView.scss";
 
 const COLUMNS: { key: TaskStatus; label: string; className?: string }[] = [
@@ -16,7 +15,6 @@ const COLUMNS: { key: TaskStatus; label: string; className?: string }[] = [
 
 type BoardViewProps = {
   tasks: Task[];
-  runs: AgentRun[];
   onUpdateStatus: (taskId: string, status: TaskStatus) => void;
   onDelete: (taskId: string) => void;
   onRun: (taskId: string) => void;
@@ -25,7 +23,6 @@ type BoardViewProps = {
 
 export function BoardView({
   tasks,
-  runs,
   onUpdateStatus,
   onDelete,
   onRun,
@@ -47,7 +44,6 @@ export function BoardView({
           onOpen={onOpen}
         />
       ))}
-      <ActiveAgentsSidebar runs={runs} tasks={tasks} />
     </div>
   );
 }
