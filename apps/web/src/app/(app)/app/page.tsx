@@ -36,6 +36,7 @@ export default function AppBoardPage() {
   const [runs, setRuns] = useState<AgentRun[]>([]);
   const [logs, setLogs] = useState<TaskLog[]>([]);
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
+  const [userInitials, setUserInitials] = useState("");
 
   const projectId = useMemo(
     () => (typeof window !== "undefined" ? localStorage.getItem("agentos_project_id") || "" : ""),
@@ -49,18 +50,32 @@ export default function AppBoardPage() {
 
   async function load() {
     if (!projectId || !workspaceId) return;
-    const [tasksData, runsData, projectsData] = await Promise.all([
+    const [tasksData, runsData, projectsData, profileData] = await Promise.all([
       apiFetch<{ tasks: Task[] }>(`/projects/${projectId}/tasks`),
       apiFetch<{ runs: AgentRun[] }>(`/projects/${projectId}/runs`),
       apiFetch<{ projects: { id: string; name: string }[] }>(
         `/workspaces/${workspaceId}/projects`
-      )
+      ),
+      apiFetch<{ profile: { full_name: string | null; email: string } }>(
+        `/profile?workspaceId=${workspaceId}`
+      ).catch(() => null)
     ]);
 
     const currentProject = projectsData.projects.find((project) => project.id === projectId);
     setTasks(tasksData.tasks);
     setRuns(runsData.runs);
     setProjectName(currentProject?.name || "[untitled]");
+    if (profileData?.profile) {
+      const { full_name, email } = profileData.profile;
+      if (full_name?.trim()) {
+        const parts = full_name.trim().split(/\s+/);
+        setUserInitials(
+          parts.length >= 2
+            ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+            : full_name.slice(0, 2).toUpperCase()
+        );
+      } else setUserInitials(email?.slice(0, 2).toUpperCase() || "?");
+    }
   }
 
   useEffect(() => {
@@ -156,15 +171,6 @@ export default function AppBoardPage() {
     await load();
   }
 
-  async function logout() {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    localStorage.removeItem("agentos_access_token");
-    localStorage.removeItem("agentos_workspace_id");
-    localStorage.removeItem("agentos_project_id");
-    router.push("/login");
-  }
-
   return (
     <div className="appBoard">
       <AppSidebar
@@ -182,7 +188,7 @@ export default function AppBoardPage() {
           search={search}
           onSearchChange={setSearch}
           onNewTaskClick={() => setNewTaskPanelOpen(true)}
-          onLogout={logout}
+          userInitials={userInitials || "?"}
         />
         <section className="appBoard__content">
           {view === "board" ? (

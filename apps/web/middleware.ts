@@ -8,6 +8,7 @@ export async function middleware(request: NextRequest) {
   const isAuthPath = pathname === "/login" || pathname === "/signup";
   const isProtectedPath =
     pathname.startsWith("/app") ||
+    pathname.startsWith("/settings") ||
     pathname.startsWith("/workspace") ||
     pathname.startsWith("/project");
 

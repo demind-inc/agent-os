@@ -28,6 +28,45 @@ export async function registerRoutes(app: FastifyInstance) {
     (request as any).user = user;
   });
 
+  app.get('/profile', async (request, reply) => {
+    const user = (request as any).user;
+    const query = request.query as { workspaceId?: string };
+    const { data: profile, error: profileError } = await adminSupabase
+      .from('profiles')
+      .select('id, email, full_name, avatar_url')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError || !profile) return reply.status(404).send({ error: 'Profile not found' });
+
+    let role: string | null = null;
+    if (query.workspaceId) {
+      const { data: member } = await adminSupabase
+        .from('workspace_members')
+        .select('role')
+        .eq('workspace_id', query.workspaceId)
+        .eq('user_id', user.id)
+        .maybeSingle();
+      role = (member as { role?: string } | null)?.role ?? null;
+    }
+
+    return { profile: { ...profile, role } };
+  });
+
+  app.patch('/profile', async (request, reply) => {
+    const user = (request as any).user;
+    const body = z.object({ full_name: z.string().optional(), avatar_url: z.string().url().optional() }).parse(request.body || {});
+    const { data, error } = await adminSupabase
+      .from('profiles')
+      .update(body)
+      .eq('id', user.id)
+      .select('id, email, full_name, avatar_url')
+      .single();
+
+    if (error || !data) return reply.status(400).send({ error: error?.message || 'Failed to update profile' });
+    return data;
+  });
+
   app.get('/workspaces', async (request, reply) => {
     const user = (request as any).user;
     const { data, error } = await adminSupabase
