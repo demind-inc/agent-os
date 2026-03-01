@@ -1,3 +1,14 @@
+@keyframes newTaskPanelSlideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
 .newTaskPanel {
   position: fixed;
   top: 0;
@@ -11,6 +22,7 @@
   flex-direction: column;
   z-index: 40;
   box-shadow: -4px 0 24px rgba(0, 0, 0, 0.06);
+  animation: newTaskPanelSlideIn 0.25s cubic-bezier(0.32, 0.72, 0, 1) forwards;
 }
 
 .newTaskPanel__header {
