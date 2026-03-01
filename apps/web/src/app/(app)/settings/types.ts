@@ -8,6 +8,7 @@ export type Profile = {
 
 export type SettingsSection =
   | "profile"
+  | "apiKeys"
   | "workspace"
   | "team"
   | "agents"

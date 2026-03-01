@@ -10,6 +10,7 @@
     "lint": "echo \"No lint configured\""
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.78.0",
     "@fastify/cors": "^10.0.2",
     "@supabase/supabase-js": "^2.49.4",
     "dotenv": "^16.4.7",

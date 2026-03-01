@@ -25,6 +25,7 @@ import {
   SettingsSidebar,
   SettingsHeader,
   ProfileTab,
+  ApiKeysTab,
   WorkspaceTab,
   TeamTab,
   AgentsTab,
@@ -38,6 +39,7 @@ import "./settings.scss";
 
 const NAV_ITEMS: NavItem[] = [
   { id: "profile", label: "Profile", icon: "user" },
+  { id: "apiKeys", label: "API Keys", icon: "key" },
   { id: "workspace", label: "Workspace", icon: "building" },
   { id: "team", label: "Team Members", icon: "users" },
   { id: "agents", label: "AI Agents", icon: "bot" },
@@ -50,6 +52,10 @@ const SECTION_META: SectionMeta = {
   profile: {
     title: "Profile Settings",
     subtitle: "Manage your personal information and account preferences.",
+  },
+  apiKeys: {
+    title: "API Keys",
+    subtitle: "Connect your own API keys for each model. Keys are stored securely and never shared.",
   },
   workspace: {
     title: "Workspace Settings",
@@ -487,6 +493,8 @@ export default function SettingsPage() {
               deleting={deleting}
             />
           )}
+
+          {activeSection === "apiKeys" && <ApiKeysTab />}
 
           {activeSection === "workspace" && (
             <WorkspaceTab

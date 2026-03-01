@@ -42,6 +42,10 @@ export default function AppBoardPage() {
   const [suggestedSkills, setSuggestedSkills] = useState<string[]>([]);
   const [isCreatingTask, setIsCreatingTask] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState<string | null>(null);
+  const [providerApiKeysConfigured, setProviderApiKeysConfigured] = useState<{
+    anthropic?: boolean;
+    openai?: boolean;
+  }>({});
 
   const projectId = useMemo(
     () => (typeof window !== "undefined" ? localStorage.getItem("agentos_project_id") || "" : ""),
@@ -55,21 +59,33 @@ export default function AppBoardPage() {
 
   async function load() {
     if (!projectId || !workspaceId) return;
-    const [tasksData, runsData, projectsData, profileData] = await Promise.all([
-      apiFetch<{ tasks: Task[] }>(`/projects/${projectId}/tasks`),
-      apiFetch<{ runs: AgentRun[] }>(`/projects/${projectId}/runs`),
-      apiFetch<{ projects: { id: string; name: string }[] }>(
-        `/workspaces/${workspaceId}/projects`
-      ),
-      apiFetch<{ profile: { full_name: string | null; email: string } }>(
-        `/profile?workspaceId=${workspaceId}`
-      ).catch(() => null)
-    ]);
+    const [tasksData, runsData, projectsData, profileData, agentsData, apiKeysData] =
+      await Promise.all([
+        apiFetch<{ tasks: Task[] }>(`/projects/${projectId}/tasks`),
+        apiFetch<{ runs: AgentRun[] }>(`/projects/${projectId}/runs`),
+        apiFetch<{ projects: { id: string; name: string }[] }>(
+          `/workspaces/${workspaceId}/projects`
+        ),
+        apiFetch<{ profile: { full_name: string | null; email: string } }>(
+          `/profile?workspaceId=${workspaceId}`
+        ).catch(() => null),
+        apiFetch<{ agents: Agent[] }>(`/workspaces/${workspaceId}/agents`).catch(() => ({
+          agents: [] as Agent[]
+        })),
+        apiFetch<{ key: string; value: { anthropic?: { configured: boolean }; openai?: { configured: boolean } } | null }>(
+          "/user/settings?key=provider_api_keys"
+        ).catch(() => ({ key: "provider_api_keys", value: null }))
+      ]);
 
     const currentProject = projectsData.projects.find((project) => project.id === projectId);
     setTasks(tasksData.tasks);
     setRuns(runsData.runs);
     setProjectName(currentProject?.name || "[untitled]");
+    setAgents(agentsData.agents ?? []);
+    setProviderApiKeysConfigured({
+      anthropic: apiKeysData.value?.anthropic?.configured ?? false,
+      openai: apiKeysData.value?.openai?.configured ?? false
+    });
     if (profileData?.profile) {
       const { full_name, email } = profileData.profile;
       if (full_name?.trim()) {
@@ -325,6 +341,12 @@ export default function AppBoardPage() {
             setActiveTaskId(null);
           }}
           onTaskUpdate={handleTaskUpdate}
+          assignedAgentBackend={
+            activeTask.assigned_agent_id
+              ? agents.find((a) => a.id === activeTask.assigned_agent_id)?.backend ?? null
+              : null
+          }
+          providerApiKeysConfigured={providerApiKeysConfigured}
         />
       )}
       {snackbarMessage && (

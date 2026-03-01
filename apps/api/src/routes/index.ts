@@ -389,6 +389,7 @@ export async function registerRoutes(app: FastifyInstance) {
         task_id: params.taskId,
         agent_id: agentId,
         status: 'queued',
+        triggered_by_user_id: user.id,
         input_snapshot: { requestedModel: body.model || null }
       })
       .select('*')
@@ -653,6 +654,18 @@ export async function registerRoutes(app: FastifyInstance) {
     return data;
   });
 
+  const PROVIDER_API_KEYS_KEY = 'provider_api_keys';
+
+  /** Mask provider API keys so the client never receives raw secrets. */
+  function maskProviderApiKeys(value: unknown): { anthropic?: { configured: boolean }; openai?: { configured: boolean } } {
+    if (!value || typeof value !== 'object') return {};
+    const v = value as Record<string, unknown>;
+    return {
+      ...(v.anthropic != null && String(v.anthropic).length > 0 && { anthropic: { configured: true } }),
+      ...(v.openai != null && String(v.openai).length > 0 && { openai: { configured: true } }),
+    };
+  }
+
   app.get('/user/settings', async (request, reply) => {
     const user = (request as any).user;
     const query = request.query as { key?: string };
@@ -660,19 +673,44 @@ export async function registerRoutes(app: FastifyInstance) {
     if (query.key) q = q.eq('key', query.key);
     const { data, error } = await q;
     if (error) return reply.status(400).send({ error: error.message });
-    if (query.key) return { key: query.key, value: (data?.[0] as { value?: unknown })?.value ?? null };
-    const settings = Object.fromEntries((data || []).map((row: { key: string; value: unknown }) => [row.key, row.value]));
+    if (query.key) {
+      const row = data?.[0] as { key: string; value?: unknown } | undefined;
+      let value = row?.value ?? null;
+      if (query.key === PROVIDER_API_KEYS_KEY && value != null) {
+        value = maskProviderApiKeys(value);
+      }
+      return { key: query.key, value };
+    }
+    const settings = Object.fromEntries(
+      (data || []).map((row: { key: string; value: unknown }) => {
+        let val = row.value;
+        if (row.key === PROVIDER_API_KEYS_KEY) val = maskProviderApiKeys(val);
+        return [row.key, val];
+      })
+    );
     return { settings };
   });
 
   app.patch('/user/settings', async (request, reply) => {
     const user = (request as any).user;
     const body = z.object({ key: z.string().min(1), value: z.any() }).parse(request.body);
+    let value = body.value;
+    if (body.key === PROVIDER_API_KEYS_KEY && value && typeof value === 'object') {
+      const { data: existing } = await adminSupabase
+        .from('user_settings')
+        .select('value')
+        .eq('user_id', user.id)
+        .eq('key', PROVIDER_API_KEYS_KEY)
+        .maybeSingle();
+      const existingObj = (existing?.value as Record<string, unknown>) ?? {};
+      value = { ...existingObj, ...value };
+    }
     const { error } = await adminSupabase.from('user_settings').upsert(
-      { user_id: user.id, key: body.key, value: body.value },
+      { user_id: user.id, key: body.key, value },
       { onConflict: 'user_id,key' }
     );
     if (error) return reply.status(400).send({ error: error.message });
-    return { key: body.key, value: body.value };
+    const outValue = body.key === PROVIDER_API_KEYS_KEY ? maskProviderApiKeys(value) : value;
+    return { key: body.key, value: outValue };
   });
 }

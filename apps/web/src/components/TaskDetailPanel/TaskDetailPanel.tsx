@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import Link from "next/link";
 import type { Task } from "@/types/domain";
 import { apiFetch } from "@/lib/api/client";
 import "./TaskDetailPanel.scss";
@@ -25,6 +26,8 @@ type TaskDetailPanelProps = {
   onReview: (taskId: string, action: "approve" | "reject") => void;
   onDelete: (taskId: string) => void | Promise<void>;
   onTaskUpdate: (updatedTask: Task) => void;
+  assignedAgentBackend?: "claude" | "codex" | null;
+  providerApiKeysConfigured?: { anthropic?: boolean; openai?: boolean };
 };
 
 export function TaskDetailPanel({
@@ -36,8 +39,25 @@ export function TaskDetailPanel({
   onClose,
   onReview,
   onDelete,
-  onTaskUpdate
+  onTaskUpdate,
+  assignedAgentBackend = null,
+  providerApiKeysConfigured = {}
 }: TaskDetailPanelProps) {
+  const hasApiKeyForAgent =
+    !assignedAgentBackend ||
+    (assignedAgentBackend === "claude" && providerApiKeysConfigured.anthropic) ||
+    (assignedAgentBackend === "codex" && providerApiKeysConfigured.openai);
+  const apiKeyError =
+    task.status === "backlog" &&
+    assignedAgentBackend &&
+    !hasApiKeyForAgent &&
+    (assignedAgentBackend === "claude"
+      ? !providerApiKeysConfigured.anthropic
+      : !providerApiKeysConfigured.openai);
+  const apiKeyErrorMessage =
+    assignedAgentBackend === "claude"
+      ? "Connect your Anthropic API key in Settings → API Keys to run this task."
+      : "Connect your OpenAI API key in Settings → API Keys to run this task.";
   const [editingTitle, setEditingTitle] = useState(false);
   const [editingDescription, setEditingDescription] = useState(false);
   const [editTitleValue, setEditTitleValue] = useState(task.title);
@@ -240,13 +260,21 @@ export function TaskDetailPanel({
         </div>
       </div>
       <div className="taskDetailPanel__footer">
+        {apiKeyError && (
+          <div className="taskDetailPanel__apiKeyError" role="alert">
+            {apiKeyErrorMessage}{" "}
+            <Link href="/settings" className="taskDetailPanel__apiKeyErrorLink">
+              Settings → API Keys
+            </Link>
+          </div>
+        )}
         <div className="taskDetailPanel__footerActions">
           {task.status === "backlog" && (
             <button
               type="button"
               className="taskDetailPanel__btn taskDetailPanel__btnPrimary"
               onClick={() => onRun(task.id)}
-              disabled={isRunning}
+              disabled={isRunning || !hasApiKeyForAgent}
             >
               {isRunning ? "AI working..." : "Let AI work"}
             </button>
