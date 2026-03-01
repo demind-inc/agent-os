@@ -387,6 +387,7 @@ export default function AppBoardPage() {
         onNewTaskClick={() => setNewTaskPanelOpen(true)}
         runs={runs}
         tasks={tasks}
+        agents={agents}
       />
       <div className="appBoard__main">
         <TopBar
