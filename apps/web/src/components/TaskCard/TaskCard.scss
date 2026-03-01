@@ -1,0 +1,59 @@
+.taskCard {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 10px;
+  background: #fff;
+
+  &__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  &__title {
+    margin: 0;
+    font-size: 0.95rem;
+  }
+
+  &__desc {
+    margin: 6px 0;
+    font-size: 0.85rem;
+    color: #6b7280;
+  }
+
+  &__skills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+
+  &__skill {
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    background: #eef2ff;
+    color: #3730a3;
+  }
+
+  &__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+  }
+
+  &__btn {
+    padding: 4px 10px;
+    font-size: 12px;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    background: #fff;
+    cursor: pointer;
+
+    &:hover {
+      background: #f9fafb;
+    }
+  }
+}

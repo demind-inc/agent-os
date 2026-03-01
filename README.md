@@ -47,21 +47,21 @@ agentos/
 
 ## Environment Variables
 
-**Next.js (root)**  
-Copy the root `.env.example` to `.env` at the repo root for the web app:
+**Web app**  
+Next.js loads `.env` from the **monorepo root** (`agentos/.env`). Copy the root example and fill in values:
 
 ```bash
 cp .env.example .env
 ```
 
-**Fastify API**  
-The API loads its env from `apps/api/.env`. Copy the API example and fill in values:
+**API**  
+The API loads `.env` from `apps/api/.env`:
 
 ```bash
 cp apps/api/.env.example apps/api/.env
 ```
 
-**Root `.env`** (web app):
+**Root `.env`** (used by the web app via `next.config`):
 
 - `NEXT_PUBLIC_SUPABASE_URL` — Supabase project URL
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Supabase anon key (auth/realtime)
@@ -72,6 +72,8 @@ cp apps/api/.env.example apps/api/.env
 - `NEXT_PUBLIC_SUPABASE_URL` — same Supabase project URL
 - `SUPABASE_SERVICE_ROLE_KEY` — Supabase service role key (never expose to the client)
 - `API_PORT` — (default: `4000`)
+
+Alternatively you can put web vars in `apps/web/.env` (see `apps/web/.env.example`); the root `.env` is loaded first so both work.
 
 ## Install
 

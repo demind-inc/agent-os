@@ -1,0 +1,21 @@
+.bottomInputBar {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 20px;
+  width: min(680px, 92vw);
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+  z-index: 10;
+
+  &__placeholder {
+    color: #9ca3af;
+    font-size: 0.9rem;
+  }
+}

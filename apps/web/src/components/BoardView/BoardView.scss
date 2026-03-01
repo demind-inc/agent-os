@@ -1,0 +1,8 @@
+.boardView {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(220px, 1fr)) 260px;
+  gap: 12px;
+  align-items: start;
+  overflow-x: auto;
+  margin-top: 12px;
+}

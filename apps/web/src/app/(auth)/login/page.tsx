@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { AuthFormCard } from "@/components/AuthFormCard/AuthFormCard";
+import "./login.scss";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -14,29 +16,36 @@ export default function LoginPage() {
     event.preventDefault();
     setError(null);
     const supabase = createClient();
-
-    const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-
+    const { data, error: signInError } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
     if (signInError) {
       setError(signInError.message);
       return;
     }
-
     localStorage.setItem("agentos_access_token", data.session.access_token);
     router.push("/workspace");
   }
 
   return (
-    <main className="page" style={{ maxWidth: 500, margin: "40px auto" }}>
-      <div className="card column">
-        <h1>Log in</h1>
-        <form className="column" onSubmit={onSubmit}>
-          <input required type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
-          <input required type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
-          {error && <p style={{ color: "#b91c1c" }}>{error}</p>}
-          <button type="submit">Continue</button>
-        </form>
-      </div>
-    </main>
+    <AuthFormCard title="Log in" submitLabel="Continue" error={error} onSubmit={onSubmit}>
+      <input
+        className="authFormCard__input"
+        required
+        type="email"
+        placeholder="Email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+      />
+      <input
+        className="authFormCard__input"
+        required
+        type="password"
+        placeholder="Password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+      />
+    </AuthFormCard>
   );
 }

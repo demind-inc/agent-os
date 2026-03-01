@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api/client";
+import { OnboardingCard } from "@/components/OnboardingCard/OnboardingCard";
+import "./workspace.scss";
 
 type Workspace = { id: string; name: string };
 
@@ -36,21 +38,14 @@ export default function WorkspacePage() {
   }
 
   return (
-    <main className="page" style={{ maxWidth: 720, margin: "24px auto" }}>
-      <div className="card column">
-        <h1>Select a workspace</h1>
-        <form className="row" onSubmit={createWorkspace}>
-          <input style={{ flex: 1 }} required placeholder="Workspace name" value={name} onChange={(e) => setName(e.target.value)} />
-          <button type="submit">Create</button>
-        </form>
-        <div className="column">
-          {workspaces.map((workspace) => (
-            <button key={workspace.id} className="task-card row" onClick={() => chooseWorkspace(workspace.id)}>
-              <strong>{workspace.name}</strong>
-            </button>
-          ))}
-        </div>
-      </div>
-    </main>
+    <OnboardingCard
+      title="Select a workspace"
+      inputPlaceholder="Workspace name"
+      inputValue={name}
+      onInputChange={setName}
+      onSubmit={createWorkspace}
+      items={workspaces.map((w) => ({ id: w.id, label: w.name }))}
+      onSelectItem={chooseWorkspace}
+    />
   );
 }

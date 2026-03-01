@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api/client";
+import { OnboardingCard } from "@/components/OnboardingCard/OnboardingCard";
+import "./project.scss";
 
 type Project = { id: string; name: string; workspace_id: string };
 
@@ -21,8 +23,9 @@ export default function ProjectPage() {
       router.push("/workspace");
       return;
     }
-
-    apiFetch<{ projects: Project[] }>(`/workspaces/${workspaceId}/projects`).then((data) => setProjects(data.projects));
+    apiFetch<{ projects: Project[] }>(`/workspaces/${workspaceId}/projects`).then((data) =>
+      setProjects(data.projects)
+    );
   }, [workspaceId, router]);
 
   async function createProject(event: React.FormEvent<HTMLFormElement>) {
@@ -42,21 +45,14 @@ export default function ProjectPage() {
   }
 
   return (
-    <main className="page" style={{ maxWidth: 720, margin: "24px auto" }}>
-      <div className="card column">
-        <h1>Select a project</h1>
-        <form className="row" onSubmit={createProject}>
-          <input style={{ flex: 1 }} required placeholder="Project name" value={name} onChange={(e) => setName(e.target.value)} />
-          <button type="submit">Create</button>
-        </form>
-        <div className="column">
-          {projects.map((project) => (
-            <button key={project.id} className="task-card row" onClick={() => chooseProject(project.id)}>
-              <strong>{project.name}</strong>
-            </button>
-          ))}
-        </div>
-      </div>
-    </main>
+    <OnboardingCard
+      title="Select a project"
+      inputPlaceholder="Project name"
+      inputValue={name}
+      onInputChange={setName}
+      onSubmit={createProject}
+      items={projects.map((p) => ({ id: p.id, label: p.name }))}
+      onSelectItem={chooseProject}
+    />
   );
 }
