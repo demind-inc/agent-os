@@ -3,12 +3,18 @@
 import type { AgentRun, Task } from "@/types/domain";
 import "./AppSidebar.scss";
 
-const AGENT_AVATAR_COLORS = ["#8B5CF6", "#14B8A6", "#3B82F6", "#F59E0B", "#10B981"];
+const AGENT_AVATAR_COLORS = [
+  "var(--accent-purple)",
+  "var(--accent-teal)",
+  "var(--accent-blue)",
+  "var(--accent-orange)",
+  "var(--accent-green)"
+];
 
 type AppSidebarProps = {
   projectTitle?: string;
-  view: "board" | "list" | "newtask";
-  onViewChange: (view: "board" | "list" | "newtask") => void;
+  view: "board" | "list";
+  onViewChange: (view: "board" | "list") => void;
   onNewTaskClick: () => void;
   runs: AgentRun[];
   tasks: Task[];
@@ -59,11 +65,7 @@ export function AppSidebar({
           </svg>
           List View
         </button>
-        <button
-          type="button"
-          className={`appSidebar__navItem appSidebar__navItem--primary ${view === "newtask" ? "appSidebar__navItem--active" : ""}`}
-          onClick={onNewTaskClick}
-        >
+        <button type="button" className="appSidebar__navItem appSidebar__navItem--primary" onClick={onNewTaskClick}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
             <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
           </svg>

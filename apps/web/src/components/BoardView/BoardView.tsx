@@ -15,6 +15,7 @@ const COLUMNS: { key: TaskStatus; label: string; className?: string }[] = [
 
 type BoardViewProps = {
   tasks: Task[];
+  projectName: string;
   onUpdateStatus: (taskId: string, status: TaskStatus) => void;
   onDelete: (taskId: string) => void;
   onRun: (taskId: string) => void;
@@ -23,6 +24,7 @@ type BoardViewProps = {
 
 export function BoardView({
   tasks,
+  projectName,
   onUpdateStatus,
   onDelete,
   onRun,
@@ -37,6 +39,7 @@ export function BoardView({
           label={col.label}
           className={col.className ?? ""}
           tasks={tasks.filter((t) => t.status === col.key)}
+          projectName={projectName}
           statusColumns={COLUMNS}
           onUpdateStatus={onUpdateStatus}
           onDelete={onDelete}

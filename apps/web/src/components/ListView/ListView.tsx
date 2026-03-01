@@ -14,11 +14,12 @@ const STATUS_PILL_CLASS: Record<string, string> = {
 
 type ListViewProps = {
   tasks: Task[];
+  projectName: string;
   onOpen: (taskId: string) => void;
   onRun: (taskId: string) => void;
 };
 
-export function ListView({ tasks, onOpen, onRun }: ListViewProps) {
+export function ListView({ tasks, projectName, onOpen, onRun }: ListViewProps) {
   return (
     <div className="listView">
       <table className="listView__table">
@@ -53,7 +54,7 @@ export function ListView({ tasks, onOpen, onRun }: ListViewProps) {
                   {task.status.replace(/_/g, " ")}
                 </span>
               </td>
-              <td className="listView__cell listView__cellMuted">—</td>
+              <td className="listView__cell listView__cellMuted">{projectName}</td>
               <td className="listView__cell listView__cellMuted">—</td>
               <td className="listView__cell listView__cellMuted">—</td>
               <td className="listView__cell" onClick={(e) => e.stopPropagation()}>

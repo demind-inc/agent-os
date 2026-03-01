@@ -15,16 +15,4 @@
   flex: 1;
   overflow: auto;
   padding: 24px;
-
-  &--newTask {
-    display: flex;
-    align-items: flex-start;
-    justify-content: center;
-    padding: 40px 24px;
-  }
-}
-
-.appBoard__newTaskWrap {
-  width: 100%;
-  max-width: 520px;
 }

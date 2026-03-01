@@ -34,11 +34,11 @@
   width: 56px;
   height: 56px;
   border-radius: 12px;
-  background: #ecfdf5;
+  background: var(--surface-green);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--accent-green);
+  color: var(--accent);
 }
 
 .workspaceTitle {
@@ -78,7 +78,7 @@
   padding: 12px 14px;
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
-  background: #fff;
+  background: var(--bg-primary);
   font-size: 14px;
   width: 100%;
 }
@@ -90,7 +90,7 @@
   padding: 12px 14px;
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
-  background: #f9fafb;
+  background: var(--bg-secondary);
   font-size: 14px;
 }
 
@@ -114,7 +114,7 @@
   padding: 10px 16px;
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
-  background: #fff;
+  background: var(--bg-primary);
   font-size: 14px;
   color: var(--text-secondary);
   cursor: pointer;
@@ -124,8 +124,8 @@
   }
 
   &--active {
-    background: #ecfdf5;
-    border-color: var(--accent-green);
+    background: var(--surface-green);
+    border-color: var(--accent);
     border-width: 2px;
     color: var(--text-primary);
   }
@@ -133,8 +133,8 @@
 
 .workspaceSubmit {
   padding: 14px;
-  background: var(--btn-primary);
-  color: #fff;
+  background: var(--accent);
+    color: var(--text-inverse);
   border: none;
   border-radius: var(--radius-md);
   font-size: 15px;
@@ -143,7 +143,7 @@
   width: 100%;
 
   &:hover {
-    background: var(--btn-primary-hover);
+    background: var(--accent-hover);
   }
 }
 
@@ -159,7 +159,7 @@
   padding: 12px 16px;
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
-  background: #fff;
+  background: var(--bg-primary);
   cursor: pointer;
   text-align: left;
   font-size: 14px;
@@ -184,6 +184,6 @@
   background: var(--border-light);
 
   &--active {
-    background: var(--accent-green);
+    background: var(--accent);
   }
 }

@@ -14,6 +14,7 @@ const STATUS_LABELS: Record<TaskStatus, string> = {
 
 type TaskCardProps = {
   task: Task;
+  projectName: string;
   statusColumns: { key: TaskStatus; label: string }[];
   onUpdateStatus: (taskId: string, status: TaskStatus) => void;
   onDelete: (taskId: string) => void;
@@ -23,6 +24,7 @@ type TaskCardProps = {
 
 export function TaskCard({
   task,
+  projectName,
   statusColumns,
   onUpdateStatus,
   onDelete,
@@ -59,7 +61,7 @@ export function TaskCard({
         <p className="taskCard__desc">{task.description}</p>
       )}
       <div className="taskCard__footer">
-        <span className="taskCard__projectBadge">Project</span>
+        <span className="taskCard__projectBadge">{projectName}</span>
         <div className="taskCard__assignee" title="Assignee">—</div>
       </div>
       <div className="taskCard__actions" onClick={(e) => e.stopPropagation()}>

@@ -31,8 +31,8 @@ export default function WorkspacePage() {
       method: "POST",
       body: JSON.stringify({ name })
     });
-    setName("");
-    setWorkspaces((prev) => [data, ...prev]);
+    localStorage.setItem("agentos_workspace_id", data.id);
+    router.push("/project");
   }
 
   function chooseWorkspace(id: string) {

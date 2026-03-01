@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import "./TopBar.scss";
 
 type TopBarProps = {
@@ -8,7 +9,7 @@ type TopBarProps = {
   search: string;
   onSearchChange: (value: string) => void;
   onNewTaskClick: () => void;
-  userInitials?: string;
+  userInitials: string;
 };
 
 export function TopBar({
@@ -17,7 +18,7 @@ export function TopBar({
   search,
   onSearchChange,
   onNewTaskClick,
-  userInitials = "JD"
+  userInitials
 }: TopBarProps) {
   return (
     <header className="topbar">
@@ -52,14 +53,14 @@ export function TopBar({
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
         />
-        <button type="button" className="topbar__notifBtn" aria-label="Notifications">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-            <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z" />
-          </svg>
-        </button>
-        <div className="topbar__avatar" title={userInitials}>
+        <Link
+          href="/settings"
+          className="topbar__avatar"
+          title="Settings"
+          aria-label="Open settings"
+        >
           {userInitials}
-        </div>
+        </Link>
       </div>
     </header>
   );

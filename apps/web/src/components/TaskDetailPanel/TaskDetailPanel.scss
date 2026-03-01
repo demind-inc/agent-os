@@ -1,3 +1,14 @@
+@keyframes taskDetailPanelSlideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
 .taskDetailPanel {
   position: fixed;
   top: 0;
@@ -11,6 +22,7 @@
   flex-direction: column;
   z-index: 40;
   box-shadow: -4px 0 24px rgba(0, 0, 0, 0.06);
+  animation: taskDetailPanelSlideIn 0.25s cubic-bezier(0.32, 0.72, 0, 1) forwards;
 }
 
 .taskDetailPanel__header {
@@ -39,7 +51,7 @@
   padding: 8px 12px;
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
-  background: #fff;
+  background: var(--bg-primary);
   font-size: 14px;
   color: var(--text-secondary);
   cursor: pointer;
@@ -138,7 +150,7 @@
 
 .taskDetailPanel__btnSecondary {
   border: 1px solid var(--border-light);
-  background: #fff;
+  background: var(--bg-primary);
   color: var(--text-secondary);
 
   &:hover {
@@ -148,11 +160,11 @@
 }
 
 .taskDetailPanel__btnPrimary {
-  background: var(--btn-primary);
-  color: #fff;
+  background: var(--accent);
+  color: var(--text-inverse);
   border: none;
 
   &:hover {
-    background: var(--btn-primary-hover);
+    background: var(--accent-hover);
   }
 }

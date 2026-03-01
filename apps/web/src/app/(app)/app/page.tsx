@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api/client";
 import { createClient } from "@/lib/supabase/client";
-import type { Task, TaskStatus, AgentRun } from "@/types/domain";
+import type { Task, TaskStatus, AgentRun, Agent } from "@/types/domain";
 import { AppSidebar } from "@/components/AppSidebar/AppSidebar";
 import { TopBar } from "@/components/TopBar/TopBar";
-import { NewTaskForm } from "@/components/NewTaskForm/NewTaskForm";
 import { BoardView } from "@/components/BoardView/BoardView";
+import { NewTaskPanel } from "@/components/NewTaskPanel/NewTaskPanel";
 import { ListView } from "@/components/ListView/ListView";
 import { TaskDetailPanel } from "@/components/TaskDetailPanel/TaskDetailPanel";
 import { BottomInputBar } from "@/components/BottomInputBar/BottomInputBar";
@@ -23,8 +24,11 @@ type TaskLog = {
 type Artifact = { id: string; type: string; title: string; url: string | null };
 
 export default function AppBoardPage() {
-  const [view, setView] = useState<"board" | "list" | "newtask">("board");
+  const router = useRouter();
+  const [view, setView] = useState<"board" | "list">("board");
+  const [newTaskPanelOpen, setNewTaskPanelOpen] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [projectName, setProjectName] = useState("[untitled]");
   const [search, setSearch] = useState("");
   const [newTitle, setNewTitle] = useState("");
   const [newDescription, setNewDescription] = useState("");
@@ -32,6 +36,10 @@ export default function AppBoardPage() {
   const [runs, setRuns] = useState<AgentRun[]>([]);
   const [logs, setLogs] = useState<TaskLog[]>([]);
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
+  const [userInitials, setUserInitials] = useState("");
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const [selectedAgentId, setSelectedAgentId] = useState("");
+  const [suggestedSkills, setSuggestedSkills] = useState<string[]>([]);
 
   const projectId = useMemo(
     () => (typeof window !== "undefined" ? localStorage.getItem("agentos_project_id") || "" : ""),
@@ -44,20 +52,52 @@ export default function AppBoardPage() {
   );
 
   async function load() {
-    if (!projectId) return;
-    const [tasksData, runsData] = await Promise.all([
+    if (!projectId || !workspaceId) return;
+    const [tasksData, runsData, projectsData, profileData] = await Promise.all([
       apiFetch<{ tasks: Task[] }>(`/projects/${projectId}/tasks`),
-      apiFetch<{ runs: AgentRun[] }>(`/projects/${projectId}/runs`)
+      apiFetch<{ runs: AgentRun[] }>(`/projects/${projectId}/runs`),
+      apiFetch<{ projects: { id: string; name: string }[] }>(
+        `/workspaces/${workspaceId}/projects`
+      ),
+      apiFetch<{ profile: { full_name: string | null; email: string } }>(
+        `/profile?workspaceId=${workspaceId}`
+      ).catch(() => null)
     ]);
+
+    const currentProject = projectsData.projects.find((project) => project.id === projectId);
     setTasks(tasksData.tasks);
     setRuns(runsData.runs);
+    setProjectName(currentProject?.name || "[untitled]");
+    if (profileData?.profile) {
+      const { full_name, email } = profileData.profile;
+      if (full_name?.trim()) {
+        const parts = full_name.trim().split(/\s+/);
+        setUserInitials(
+          parts.length >= 2
+            ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+            : full_name.slice(0, 2).toUpperCase()
+        );
+      } else setUserInitials(email?.slice(0, 2).toUpperCase() || "?");
+    }
   }
 
   useEffect(() => {
+    if (!workspaceId) {
+      router.replace("/workspace");
+      return;
+    }
+
+    if (!projectId) {
+      router.replace("/project");
+      return;
+    }
+
     load().catch(console.error);
-  }, [projectId]);
+  }, [projectId, router, workspaceId]);
 
   useEffect(() => {
+    if (!projectId) return;
+
     const supabase = createClient();
     const channel = supabase
       .channel("agentos-board")
@@ -79,16 +119,52 @@ export default function AppBoardPage() {
 
   const activeTask = tasks.find((t) => t.id === activeTaskId) ?? null;
 
+  const loadAgents = useCallback(async () => {
+    if (!workspaceId) return;
+    try {
+      const data = await apiFetch<{ agents: Agent[] }>(`/workspaces/${workspaceId}/agents`);
+      const list = data.agents ?? [];
+      setAgents(list);
+      setSelectedAgentId((prev) => (prev && list.some((a) => a.id === prev) ? prev : list[0]?.id ?? ""));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [workspaceId]);
+
+  useEffect(() => {
+    if (newTaskPanelOpen && workspaceId) loadAgents();
+  }, [newTaskPanelOpen, workspaceId, loadAgents]);
+
+  useEffect(() => {
+    if (!workspaceId || !newDescription.trim()) {
+      setSuggestedSkills([]);
+      return;
+    }
+    const t = setTimeout(() => {
+      apiFetch<{ suggestedSkills: string[] }>(
+        `/workspaces/${workspaceId}/suggest-skills?description=${encodeURIComponent(newDescription)}`
+      )
+        .then((data) => setSuggestedSkills(data.suggestedSkills ?? []))
+        .catch(() => setSuggestedSkills([]));
+    }, 400);
+    return () => clearTimeout(t);
+  }, [workspaceId, newDescription]);
+
   async function createTask(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!projectId || !newTitle) return;
+    if (!projectId || !newTitle || !selectedAgentId) return;
     await apiFetch(`/projects/${projectId}/tasks`, {
       method: "POST",
-      body: JSON.stringify({ title: newTitle, description: newDescription })
+      body: JSON.stringify({
+        title: newTitle,
+        description: newDescription,
+        assigned_agent_id: selectedAgentId
+      })
     });
     setNewTitle("");
     setNewDescription("");
-    setView("board");
+    setSelectedAgentId(agents[0]?.id ?? "");
+    setNewTaskPanelOpen(false);
     await load();
   }
 
@@ -137,63 +213,62 @@ export default function AppBoardPage() {
   return (
     <div className="appBoard">
       <AppSidebar
-        projectTitle="[untitled]"
+        projectTitle={projectName}
         view={view}
         onViewChange={setView}
-        onNewTaskClick={() => setView("newtask")}
+        onNewTaskClick={() => setNewTaskPanelOpen(true)}
         runs={runs}
         tasks={tasks}
       />
       <div className="appBoard__main">
-        {view !== "newtask" && (
-          <TopBar
-            view={view}
-            onViewChange={(v) => setView(v)}
-            search={search}
-            onSearchChange={setSearch}
-            onNewTaskClick={() => setView("newtask")}
-          />
-        )}
-        <section className={`appBoard__content ${view === "newtask" ? "appBoard__content--newTask" : ""}`}>
-          {view === "newtask" ? (
-            <div className="appBoard__newTaskWrap">
-              <NewTaskForm
-                title={newTitle}
-                description={newDescription}
-                onTitleChange={setNewTitle}
-                onDescriptionChange={setNewDescription}
-                onSubmit={createTask}
-              />
-            </div>
+        <TopBar
+          view={view}
+          onViewChange={setView}
+          search={search}
+          onSearchChange={setSearch}
+          onNewTaskClick={() => setNewTaskPanelOpen(true)}
+          userInitials={userInitials || "?"}
+        />
+        <section className="appBoard__content">
+          {view === "board" ? (
+            <BoardView
+              tasks={filteredTasks}
+              projectName={projectName}
+              onUpdateStatus={updateStatus}
+              onDelete={deleteTask}
+              onRun={runTask}
+              onOpen={openTask}
+            />
           ) : (
-            <>
-              <NewTaskForm
-                title={newTitle}
-                description={newDescription}
-                onTitleChange={setNewTitle}
-                onDescriptionChange={setNewDescription}
-                onSubmit={createTask}
-              />
-              {view === "board" ? (
-                <BoardView
-                  tasks={filteredTasks}
-                  onUpdateStatus={updateStatus}
-                  onDelete={deleteTask}
-                  onRun={runTask}
-                  onOpen={openTask}
-                />
-              ) : (
-                <ListView
-                  tasks={filteredTasks}
-                  onOpen={openTask}
-                  onRun={runTask}
-                />
-              )}
-            </>
+            <ListView
+              tasks={filteredTasks}
+              projectName={projectName}
+              onOpen={openTask}
+              onRun={runTask}
+            />
           )}
         </section>
-        {view !== "newtask" && <BottomInputBar />}
+        <BottomInputBar />
       </div>
+      {newTaskPanelOpen && (
+        <NewTaskPanel
+          title={newTitle}
+          description={newDescription}
+          onTitleChange={setNewTitle}
+          onDescriptionChange={setNewDescription}
+          agents={agents}
+          selectedAgentId={selectedAgentId}
+          onAgentChange={setSelectedAgentId}
+          suggestedSkills={suggestedSkills}
+          onSubmit={createTask}
+          onClose={() => {
+            setNewTaskPanelOpen(false);
+            setNewTitle("");
+            setNewDescription("");
+            setSuggestedSkills([]);
+          }}
+        />
+      )}
       {activeTask && (
         <TaskDetailPanel
           task={activeTask}

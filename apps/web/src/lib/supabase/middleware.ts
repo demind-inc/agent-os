@@ -1,4 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
+import type { User } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function updateSession(request: NextRequest) {
@@ -8,7 +9,7 @@ export async function updateSession(request: NextRequest) {
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!url || !key) {
-    return response;
+    return { response, user: null as User | null };
   }
 
   const supabase = createServerClient(url, key, {
@@ -24,6 +25,9 @@ export async function updateSession(request: NextRequest) {
     }
   });
 
-  await supabase.auth.getUser();
-  return response;
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+
+  return { response, user };
 }

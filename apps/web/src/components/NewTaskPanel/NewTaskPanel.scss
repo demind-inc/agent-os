@@ -1,0 +1,212 @@
+@keyframes newTaskPanelSlideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.newTaskPanel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 380px;
+  max-width: 100vw;
+  height: 100vh;
+  background: var(--bg-primary);
+  border-left: 1px solid var(--border-light);
+  display: flex;
+  flex-direction: column;
+  z-index: 40;
+  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.06);
+  animation: newTaskPanelSlideIn 0.25s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+.newTaskPanel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-light);
+  flex-shrink: 0;
+}
+
+.newTaskPanel__headerLeft {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.newTaskPanel__icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background: var(--surface-purple);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.newTaskPanel__title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.newTaskPanel__close {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+
+  &:hover {
+    background: var(--border-light);
+    color: var(--text-primary);
+  }
+}
+
+.newTaskPanel__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.newTaskPanel__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.newTaskPanel__label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.newTaskPanel__input {
+  padding: 12px 14px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  font-size: 14px;
+  width: 100%;
+
+  &--readonly {
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    cursor: default;
+  }
+}
+
+.newTaskPanel__textarea {
+  padding: 12px 14px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  font-size: 14px;
+  width: 100%;
+  min-height: 100px;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.newTaskPanel__agentList {
+  padding: 12px 14px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.newTaskPanel__required {
+  color: var(--text-error, #dc2626);
+}
+
+.newTaskPanel__select {
+  cursor: pointer;
+  appearance: auto;
+}
+
+.newTaskPanel__suggestedSkills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.newTaskPanel__skillChip {
+  padding: 4px 10px;
+  border-radius: 16px;
+  font-size: 12px;
+  background: var(--surface-purple, rgba(124, 58, 237, 0.12));
+  color: var(--accent);
+}
+
+.newTaskPanel__noAgents {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 0;
+  padding: 12px 14px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+}
+
+.newTaskPanel__footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--border-light);
+  flex-shrink: 0;
+}
+
+.newTaskPanel__btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+
+  &--secondary {
+    border: 1px solid var(--border-light);
+    background: var(--bg-primary);
+    color: var(--text-secondary);
+
+    &:hover {
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+    }
+  }
+
+  &--primary {
+    border: none;
+    background: var(--accent);
+    color: var(--text-inverse);
+    font-weight: 600;
+
+    &:hover {
+      background: var(--accent-hover);
+    }
+  }
+}
