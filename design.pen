@@ -10498,7 +10498,8 @@
                           "fill": "$text-muted",
                           "content": "Search tasks...",
                           "fontFamily": "Inter",
-                          "fontSize": 13
+                          "fontSize": 13,
+                          "fontWeight": "normal"
                         }
                       ]
                     },
@@ -11040,7 +11041,8 @@
                                   "fill": "$text-muted",
                                   "content": "Enter task title...",
                                   "fontFamily": "Inter",
-                                  "fontSize": 14
+                                  "fontSize": 14,
+                                  "fontWeight": "normal"
                                 }
                               ]
                             }
@@ -11089,7 +11091,8 @@
                                   "fill": "$text-muted",
                                   "content": "Add a description for this task...",
                                   "fontFamily": "Inter",
-                                  "fontSize": 14
+                                  "fontSize": 14,
+                                  "fontWeight": "normal"
                                 }
                               ]
                             }
@@ -11138,7 +11141,8 @@
                                   "fill": "$text-muted",
                                   "content": "Select a project...",
                                   "fontFamily": "Inter",
-                                  "fontSize": 14
+                                  "fontSize": 14,
+                                  "fontWeight": "normal"
                                 },
                                 {
                                   "type": "icon_font",
@@ -11261,7 +11265,8 @@
                                           "fill": "$text-muted",
                                           "content": "Breaks down tasks into steps",
                                           "fontFamily": "Inter",
-                                          "fontSize": 11
+                                          "fontSize": 11,
+                                          "fontWeight": "normal"
                                         }
                                       ]
                                     }
@@ -11348,7 +11353,8 @@
                                           "fill": "$text-muted",
                                           "content": "Creates written content",
                                           "fontFamily": "Inter",
-                                          "fontSize": 11
+                                          "fontSize": 11,
+                                          "fontWeight": "normal"
                                         }
                                       ]
                                     }
@@ -11435,7 +11441,8 @@
                                           "fill": "$text-muted",
                                           "content": "Gathers and analyzes data",
                                           "fontFamily": "Inter",
-                                          "fontSize": 11
+                                          "fontSize": 11,
+                                          "fontWeight": "normal"
                                         }
                                       ]
                                     }

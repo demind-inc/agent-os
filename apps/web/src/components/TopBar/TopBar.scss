@@ -17,7 +17,7 @@
     display: flex;
     padding: 4px;
     border-radius: var(--radius-md);
-    background: #f3f4f6;
+    background: var(--surface);
     gap: 0;
   }
 
@@ -31,7 +31,7 @@
     cursor: pointer;
 
     &--active {
-      background: #fff;
+      background: var(--bg-primary);
       color: var(--text-primary);
       font-weight: 500;
       box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
@@ -46,7 +46,7 @@
     border: none;
     border-radius: var(--radius-sm);
     background: var(--btn-primary);
-    color: #fff;
+    color: var(--text-inverse);
     font-size: 14px;
     font-weight: 500;
     cursor: pointer;
@@ -97,12 +97,26 @@
     }
   }
 
+  &__logoutBtn {
+    border: 1px solid var(--border-light);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+    padding: 8px 12px;
+    font-size: 13px;
+    cursor: pointer;
+
+    &:hover {
+      background: var(--border-light);
+    }
+  }
+
   &__avatar {
     width: 36px;
     height: 36px;
     border-radius: 50%;
     background: var(--accent-purple);
-    color: #fff;
+    color: var(--text-inverse);
     display: flex;
     align-items: center;
     justify-content: center;

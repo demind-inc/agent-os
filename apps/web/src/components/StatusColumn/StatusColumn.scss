@@ -56,7 +56,7 @@ $col-review: var(--column-review);
     border-radius: 11px;
     font-size: 11px;
     font-weight: 600;
-    background: #f3f4f6;
+    background: var(--surface);
     color: var(--text-secondary);
     display: flex;
     align-items: center;
@@ -72,25 +72,25 @@ $col-review: var(--column-review);
 
 // Column accent dots and count pill by status
 .statusColumn[data-status="backlog"] .statusColumn__count {
-  background: #f3f4f6;
+  background: var(--surface);
 }
 .statusColumn[data-status="ai_working"] .statusColumn__dot {
   background: $col-working;
 }
 .statusColumn[data-status="ai_working"] .statusColumn__count {
-  background: #dcfce7;
-  color: #166534;
+  background: var(--success-bg);
+  color: var(--success-fg);
 }
 .statusColumn[data-status="needs_human_input"] .statusColumn__dot {
   background: $col-needs;
 }
 .statusColumn[data-status="needs_human_input"] .statusColumn__count {
-  background: #fef3c7;
-  color: #92400e;
+  background: var(--warn-bg);
+  color: var(--warn-fg);
 }
 .statusColumn[data-status="in_review"] .statusColumn__count,
 .statusColumn[data-status="done"] .statusColumn__count {
-  background: #f3f4f6;
+  background: var(--surface);
 }
 .statusColumn[data-status="failed"] .statusColumn__dot {
   background: var(--accent-red);

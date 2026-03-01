@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api/client";
 import { createClient } from "@/lib/supabase/client";
 import type { Task, TaskStatus, AgentRun } from "@/types/domain";
 import { AppSidebar } from "@/components/AppSidebar/AppSidebar";
 import { TopBar } from "@/components/TopBar/TopBar";
-import { NewTaskForm } from "@/components/NewTaskForm/NewTaskForm";
 import { BoardView } from "@/components/BoardView/BoardView";
+import { NewTaskPanel } from "@/components/NewTaskPanel/NewTaskPanel";
 import { ListView } from "@/components/ListView/ListView";
 import { TaskDetailPanel } from "@/components/TaskDetailPanel/TaskDetailPanel";
 import { BottomInputBar } from "@/components/BottomInputBar/BottomInputBar";
@@ -23,7 +24,9 @@ type TaskLog = {
 type Artifact = { id: string; type: string; title: string; url: string | null };
 
 export default function AppBoardPage() {
-  const [view, setView] = useState<"board" | "list" | "newtask">("board");
+  const router = useRouter();
+  const [view, setView] = useState<"board" | "list">("board");
+  const [newTaskPanelOpen, setNewTaskPanelOpen] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [search, setSearch] = useState("");
   const [newTitle, setNewTitle] = useState("");
@@ -54,10 +57,22 @@ export default function AppBoardPage() {
   }
 
   useEffect(() => {
+    if (!workspaceId) {
+      router.replace("/workspace");
+      return;
+    }
+
+    if (!projectId) {
+      router.replace("/project");
+      return;
+    }
+
     load().catch(console.error);
-  }, [projectId]);
+  }, [projectId, router, workspaceId]);
 
   useEffect(() => {
+    if (!projectId) return;
+
     const supabase = createClient();
     const channel = supabase
       .channel("agentos-board")
@@ -88,7 +103,7 @@ export default function AppBoardPage() {
     });
     setNewTitle("");
     setNewDescription("");
-    setView("board");
+    setNewTaskPanelOpen(false);
     await load();
   }
 
@@ -134,66 +149,67 @@ export default function AppBoardPage() {
     await load();
   }
 
+  async function logout() {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    localStorage.removeItem("agentos_access_token");
+    localStorage.removeItem("agentos_workspace_id");
+    localStorage.removeItem("agentos_project_id");
+    router.push("/login");
+  }
+
   return (
     <div className="appBoard">
       <AppSidebar
         projectTitle="[untitled]"
         view={view}
         onViewChange={setView}
-        onNewTaskClick={() => setView("newtask")}
+        onNewTaskClick={() => setNewTaskPanelOpen(true)}
         runs={runs}
         tasks={tasks}
       />
       <div className="appBoard__main">
-        {view !== "newtask" && (
-          <TopBar
-            view={view}
-            onViewChange={(v) => setView(v)}
-            search={search}
-            onSearchChange={setSearch}
-            onNewTaskClick={() => setView("newtask")}
-          />
-        )}
-        <section className={`appBoard__content ${view === "newtask" ? "appBoard__content--newTask" : ""}`}>
-          {view === "newtask" ? (
-            <div className="appBoard__newTaskWrap">
-              <NewTaskForm
-                title={newTitle}
-                description={newDescription}
-                onTitleChange={setNewTitle}
-                onDescriptionChange={setNewDescription}
-                onSubmit={createTask}
-              />
-            </div>
+        <TopBar
+          view={view}
+          onViewChange={setView}
+          search={search}
+          onSearchChange={setSearch}
+          onNewTaskClick={() => setNewTaskPanelOpen(true)}
+          onLogout={logout}
+        />
+        <section className="appBoard__content">
+          {view === "board" ? (
+            <BoardView
+              tasks={filteredTasks}
+              onUpdateStatus={updateStatus}
+              onDelete={deleteTask}
+              onRun={runTask}
+              onOpen={openTask}
+            />
           ) : (
-            <>
-              <NewTaskForm
-                title={newTitle}
-                description={newDescription}
-                onTitleChange={setNewTitle}
-                onDescriptionChange={setNewDescription}
-                onSubmit={createTask}
-              />
-              {view === "board" ? (
-                <BoardView
-                  tasks={filteredTasks}
-                  onUpdateStatus={updateStatus}
-                  onDelete={deleteTask}
-                  onRun={runTask}
-                  onOpen={openTask}
-                />
-              ) : (
-                <ListView
-                  tasks={filteredTasks}
-                  onOpen={openTask}
-                  onRun={runTask}
-                />
-              )}
-            </>
+            <ListView
+              tasks={filteredTasks}
+              onOpen={openTask}
+              onRun={runTask}
+            />
           )}
         </section>
-        {view !== "newtask" && <BottomInputBar />}
+        <BottomInputBar />
       </div>
+      {newTaskPanelOpen && (
+        <NewTaskPanel
+          title={newTitle}
+          description={newDescription}
+          onTitleChange={setNewTitle}
+          onDescriptionChange={setNewDescription}
+          onSubmit={createTask}
+          onClose={() => {
+            setNewTaskPanelOpen(false);
+            setNewTitle("");
+            setNewDescription("");
+          }}
+        />
+      )}
       {activeTask && (
         <TaskDetailPanel
           task={activeTask}

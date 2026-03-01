@@ -20,7 +20,7 @@
     height: 36px;
     border-radius: var(--radius-md);
     background: var(--accent-green);
-    color: #fff;
+    color: var(--text-inverse);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -59,7 +59,7 @@
     }
 
     &--active {
-      background: #f3f4f6;
+      background: var(--surface);
       color: var(--text-primary);
       font-weight: 500;
     }
@@ -70,10 +70,6 @@
 
       &:hover {
         background: rgba(16, 185, 129, 0.08);
-      }
-
-      &.appSidebar__navItem--active {
-        background: rgba(16, 185, 129, 0.12);
       }
     }
   }
@@ -124,7 +120,7 @@
     height: 28px;
     border-radius: 14px;
     background: var(--accent-purple);
-    color: #fff;
+    color: var(--text-inverse);
     font-size: 11px;
     font-weight: 600;
     display: flex;

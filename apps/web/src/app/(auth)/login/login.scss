@@ -55,7 +55,7 @@
     padding: 12px 14px;
     border: 1px solid var(--border-light);
     border-radius: var(--radius-md);
-    background: #fff;
+    background: var(--bg-primary);
     font-size: 14px;
     width: 100%;
   }
@@ -63,7 +63,7 @@
   &__submit {
     padding: 14px;
     background: var(--btn-primary);
-    color: #fff;
+    color: var(--text-inverse);
     border: none;
     border-radius: var(--radius-md);
     font-size: 15px;

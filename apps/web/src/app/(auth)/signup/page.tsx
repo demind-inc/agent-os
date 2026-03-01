@@ -28,8 +28,16 @@ export default function SignupPage() {
       setError(signUpError.message);
       return;
     }
-    const token = data.session?.access_token;
-    if (token) localStorage.setItem("agentos_access_token", token);
+
+    const session = data.session ?? (await supabase.auth.getSession()).data.session;
+    const token = session?.access_token;
+    if (!token) {
+      setError("Account created. Please verify your email, then log in.");
+      router.push("/login");
+      return;
+    }
+
+    localStorage.setItem("agentos_access_token", token);
     router.push("/workspace");
   }
 
