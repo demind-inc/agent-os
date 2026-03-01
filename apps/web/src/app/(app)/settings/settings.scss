@@ -865,7 +865,7 @@
   display: grid;
   grid-template-columns: auto 1fr auto;
   gap: 16px;
-  align-items: center;
+  align-items: flex-start;
   padding: 20px;
   border-radius: 12px;
   background: var(--bg-primary);
@@ -911,6 +911,33 @@
 .settingsPage__agentDesc {
   font-size: 13px;
   color: var(--text-secondary);
+}
+
+.settingsPage__agentSkillsWrap {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.settingsPage__agentSkillsLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.settingsPage__agentSkillsChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.settingsPage__agentSkillChip {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 14px;
+  background: var(--surface-purple, rgba(124, 58, 237, 0.12));
+  color: var(--accent-purple, #7c3aed);
 }
 
 .settingsPage__integrationGrid {
