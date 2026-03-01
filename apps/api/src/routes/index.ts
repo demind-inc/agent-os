@@ -5,7 +5,8 @@ import { enqueueRun } from "../services/runner.js";
 
 const createTaskSchema = z.object({
   title: z.string().min(1),
-  description: z.string().default("")
+  description: z.string().default(""),
+  assigned_agent_id: z.string().uuid()
 });
 
 const updateTaskSchema = z.object({
@@ -198,6 +199,9 @@ export async function registerRoutes(app: FastifyInstance) {
     if (!project) return reply.status(404).send({ error: 'Project not found' });
     await assertWorkspaceMember(user.id, project.workspace_id);
 
+    const { data: agent } = await adminSupabase.from('agents').select('id').eq('id', body.assigned_agent_id).eq('workspace_id', project.workspace_id).maybeSingle();
+    if (!agent) return reply.status(400).send({ error: 'Invalid or inaccessible agent' });
+
     const detectedSkills = await detectSkillsFromDescription(body.description);
 
     const { data, error } = await adminSupabase
@@ -206,6 +210,7 @@ export async function registerRoutes(app: FastifyInstance) {
         project_id: params.projectId,
         title: body.title,
         description: body.description,
+        assigned_agent_id: body.assigned_agent_id,
         metadata: { detectedSkills }
       })
       .select('*')
@@ -373,6 +378,79 @@ export async function registerRoutes(app: FastifyInstance) {
     const { data, error } = await adminSupabase.from('agents').select('*').eq('workspace_id', params.workspaceId);
     if (error) return reply.status(400).send({ error: error.message });
     return { agents: data || [] };
+  });
+
+  app.post('/workspaces/:workspaceId/agents', async (request, reply) => {
+    const user = (request as any).user;
+    const params = request.params as { workspaceId: string };
+    await assertWorkspaceMember(user.id, params.workspaceId);
+
+    const body = z.object({
+      name: z.string().min(1),
+      slug: z.string().min(1).regex(/^[a-z0-9-_]+$/),
+      backend: z.enum(['claude', 'codex']),
+      model: z.string().min(1),
+      config: z.object({ skills: z.array(z.string()).optional() }).optional()
+    }).parse(request.body);
+
+    const { data, error } = await adminSupabase
+      .from('agents')
+      .insert({
+        workspace_id: params.workspaceId,
+        name: body.name,
+        slug: body.slug,
+        backend: body.backend,
+        model: body.model,
+        config: { skills: body.config?.skills ?? [] }
+      })
+      .select('*')
+      .single();
+
+    if (error || !data) return reply.status(400).send({ error: error?.message || 'Failed to create agent' });
+    return data;
+  });
+
+  app.patch('/workspaces/:workspaceId/agents/:agentId', async (request, reply) => {
+    const user = (request as any).user;
+    const params = request.params as { workspaceId: string; agentId: string };
+    await assertWorkspaceMember(user.id, params.workspaceId);
+
+    const body = z.object({
+      name: z.string().min(1).optional(),
+      slug: z.string().min(1).regex(/^[a-z0-9-_]+$/).optional(),
+      backend: z.enum(['claude', 'codex']).optional(),
+      model: z.string().min(1).optional(),
+      config: z.object({ skills: z.array(z.string()).optional() }).optional()
+    }).parse(request.body);
+
+    const updatePayload: Record<string, unknown> = {};
+    if (body.name != null) updatePayload.name = body.name;
+    if (body.slug != null) updatePayload.slug = body.slug;
+    if (body.backend != null) updatePayload.backend = body.backend;
+    if (body.model != null) updatePayload.model = body.model;
+    if (body.config != null) updatePayload.config = body.config;
+
+    const { data, error } = await adminSupabase
+      .from('agents')
+      .update(updatePayload)
+      .eq('id', params.agentId)
+      .eq('workspace_id', params.workspaceId)
+      .select('*')
+      .single();
+
+    if (error || !data) return reply.status(400).send({ error: error?.message || 'Failed to update agent' });
+    return data;
+  });
+
+  app.get('/workspaces/:workspaceId/suggest-skills', async (request, reply) => {
+    const user = (request as any).user;
+    const params = request.params as { workspaceId: string };
+    const query = request.query as { description?: string };
+    await assertWorkspaceMember(user.id, params.workspaceId);
+
+    const description = query.description ?? '';
+    const suggestedSkills = await detectSkillsFromDescription(description);
+    return { suggestedSkills };
   });
 
   app.post('/integrations/oauth/start', async (request, reply) => {

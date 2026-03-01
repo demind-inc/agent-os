@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api/client";
 import { createClient } from "@/lib/supabase/client";
-import type { Task, TaskStatus, AgentRun } from "@/types/domain";
+import type { Task, TaskStatus, AgentRun, Agent } from "@/types/domain";
 import { AppSidebar } from "@/components/AppSidebar/AppSidebar";
 import { TopBar } from "@/components/TopBar/TopBar";
 import { BoardView } from "@/components/BoardView/BoardView";
@@ -37,6 +37,9 @@ export default function AppBoardPage() {
   const [logs, setLogs] = useState<TaskLog[]>([]);
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
   const [userInitials, setUserInitials] = useState("");
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const [selectedAgentId, setSelectedAgentId] = useState("");
+  const [suggestedSkills, setSuggestedSkills] = useState<string[]>([]);
 
   const projectId = useMemo(
     () => (typeof window !== "undefined" ? localStorage.getItem("agentos_project_id") || "" : ""),
@@ -116,15 +119,51 @@ export default function AppBoardPage() {
 
   const activeTask = tasks.find((t) => t.id === activeTaskId) ?? null;
 
+  const loadAgents = useCallback(async () => {
+    if (!workspaceId) return;
+    try {
+      const data = await apiFetch<{ agents: Agent[] }>(`/workspaces/${workspaceId}/agents`);
+      const list = data.agents ?? [];
+      setAgents(list);
+      setSelectedAgentId((prev) => (prev && list.some((a) => a.id === prev) ? prev : list[0]?.id ?? ""));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [workspaceId]);
+
+  useEffect(() => {
+    if (newTaskPanelOpen && workspaceId) loadAgents();
+  }, [newTaskPanelOpen, workspaceId, loadAgents]);
+
+  useEffect(() => {
+    if (!workspaceId || !newDescription.trim()) {
+      setSuggestedSkills([]);
+      return;
+    }
+    const t = setTimeout(() => {
+      apiFetch<{ suggestedSkills: string[] }>(
+        `/workspaces/${workspaceId}/suggest-skills?description=${encodeURIComponent(newDescription)}`
+      )
+        .then((data) => setSuggestedSkills(data.suggestedSkills ?? []))
+        .catch(() => setSuggestedSkills([]));
+    }, 400);
+    return () => clearTimeout(t);
+  }, [workspaceId, newDescription]);
+
   async function createTask(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!projectId || !newTitle) return;
+    if (!projectId || !newTitle || !selectedAgentId) return;
     await apiFetch(`/projects/${projectId}/tasks`, {
       method: "POST",
-      body: JSON.stringify({ title: newTitle, description: newDescription })
+      body: JSON.stringify({
+        title: newTitle,
+        description: newDescription,
+        assigned_agent_id: selectedAgentId
+      })
     });
     setNewTitle("");
     setNewDescription("");
+    setSelectedAgentId(agents[0]?.id ?? "");
     setNewTaskPanelOpen(false);
     await load();
   }
@@ -217,11 +256,16 @@ export default function AppBoardPage() {
           description={newDescription}
           onTitleChange={setNewTitle}
           onDescriptionChange={setNewDescription}
+          agents={agents}
+          selectedAgentId={selectedAgentId}
+          onAgentChange={setSelectedAgentId}
+          suggestedSkills={suggestedSkills}
           onSubmit={createTask}
           onClose={() => {
             setNewTaskPanelOpen(false);
             setNewTitle("");
             setNewDescription("");
+            setSuggestedSkills([]);
           }}
         />
       )}

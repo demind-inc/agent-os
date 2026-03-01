@@ -14,6 +14,7 @@ export interface Task {
   title: string;
   description: string;
   status: TaskStatus;
+  assigned_agent_id?: string | null;
   metadata: Record<string, unknown>;
 }
 
@@ -22,5 +23,18 @@ export interface AgentRun {
   task_id: string;
   agent_id: string;
   status: RunStatus;
+  created_at: string;
+}
+
+export type AgentBackend = "claude" | "codex";
+
+export interface Agent {
+  id: string;
+  workspace_id: string;
+  name: string;
+  slug: string;
+  backend: AgentBackend;
+  model: string;
+  config: { skills?: string[] };
   created_at: string;
 }

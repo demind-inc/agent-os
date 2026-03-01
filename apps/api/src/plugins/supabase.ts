@@ -34,11 +34,14 @@ export async function assertWorkspaceMember(userId: string, workspaceId: string)
 
 export async function detectSkillsFromDescription(description: string) {
   const dictionary: Record<string, string[]> = {
-    github: ["github", "pull request", "pr", "repo"],
-    todoist: ["todoist", "task sync", "todo"],
-    ui: ["ui", "design", "layout", "component"],
-    docs: ["docs", "documentation", "readme"],
-    api: ["api", "endpoint", "fastify", "backend"]
+    github: ["github", "pull request", "pr", "repo", "commit", "merge"],
+    todoist: ["todoist", "task sync", "todo", "checklist"],
+    ui: ["ui", "design", "layout", "component", "frontend", "react"],
+    docs: ["docs", "documentation", "readme", "write", "document"],
+    api: ["api", "endpoint", "fastify", "backend", "integration"],
+    "web-search": ["research", "search", "find", "look up", "synthesis", "summarize"],
+    breakdown: ["plan", "break down", "steps", "timeline", "schedule", "milestone"],
+    copy: ["copy", "marketing", "blog", "content", "write", "draft"]
   };
 
   const lower = description.toLowerCase();

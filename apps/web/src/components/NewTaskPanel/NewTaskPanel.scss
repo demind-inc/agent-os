@@ -137,8 +137,36 @@
   color: var(--text-muted);
 }
 
-.newTaskPanel__agentPlaceholder {
-  color: var(--text-muted);
+.newTaskPanel__required {
+  color: var(--text-error, #dc2626);
+}
+
+.newTaskPanel__select {
+  cursor: pointer;
+  appearance: auto;
+}
+
+.newTaskPanel__suggestedSkills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.newTaskPanel__skillChip {
+  padding: 4px 10px;
+  border-radius: 16px;
+  font-size: 12px;
+  background: var(--surface-purple, rgba(124, 58, 237, 0.12));
+  color: var(--accent-purple, #7c3aed);
+}
+
+.newTaskPanel__noAgents {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 0;
+  padding: 12px 14px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
 }
 
 .newTaskPanel__footer {
