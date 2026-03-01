@@ -4,7 +4,11 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { apiFetch } from "@/lib/api/client";
 import "./login.scss";
+
+type Workspace = { id: string; name: string };
+type Project = { id: string; name: string; workspace_id: string };
 
 export default function LoginPage() {
   const router = useRouter();
@@ -25,6 +29,24 @@ export default function LoginPage() {
       return;
     }
     localStorage.setItem("agentos_access_token", data.session.access_token);
+
+    try {
+      const { workspaces } = await apiFetch<{ workspaces: Workspace[] }>("/workspaces");
+      if (workspaces.length > 0) {
+        const workspaceId = workspaces[0].id;
+        localStorage.setItem("agentos_workspace_id", workspaceId);
+        const { projects } = await apiFetch<{ projects: Project[] }>(
+          `/workspaces/${workspaceId}/projects`
+        );
+        if (projects.length > 0) {
+          localStorage.setItem("agentos_project_id", projects[0].id);
+        }
+        router.push("/");
+        return;
+      }
+    } catch {
+      // If workspace fetch fails, fall through to workspace creation
+    }
     router.push("/workspace");
   }
 

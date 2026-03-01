@@ -19,6 +19,8 @@ type TaskDetailPanelProps = {
   task: Task;
   logs: TaskLog[];
   artifacts: Artifact[];
+  onRun: (taskId: string) => void;
+  isRunning?: boolean;
   onClose: () => void;
   onReview: (taskId: string, action: "approve" | "reject") => void;
   onDelete: (taskId: string) => void | Promise<void>;
@@ -29,6 +31,8 @@ export function TaskDetailPanel({
   task,
   logs,
   artifacts,
+  onRun,
+  isRunning = false,
   onClose,
   onReview,
   onDelete,
@@ -101,7 +105,13 @@ export function TaskDetailPanel({
   }
 
   return (
-    <section className="taskDetailPanel">
+    <>
+      <div
+        className="taskDetailPanel__backdrop"
+        onClick={onClose}
+        aria-hidden
+      />
+      <section className="taskDetailPanel">
       <div className="taskDetailPanel__header">
         {editingTitle ? (
           <input
@@ -125,14 +135,29 @@ export function TaskDetailPanel({
             {task.title}
           </h2>
         )}
-        <button
-          type="button"
-          className="taskDetailPanel__iconBtn taskDetailPanel__close"
-          onClick={onClose}
-          aria-label="Close panel"
-        >
-          <span className="taskDetailPanel__icon" data-icon="x" aria-hidden />
-        </button>
+        <div className="taskDetailPanel__headerActions">
+          <button
+            type="button"
+            className="taskDetailPanel__iconBtn taskDetailPanel__btn taskDetailPanel__btnDanger"
+            onClick={handleDelete}
+            disabled={isDeleting}
+            aria-label="Delete task"
+          >
+            {isDeleting ? (
+              <span className="taskDetailPanel__spinner" aria-hidden />
+            ) : (
+              <span className="taskDetailPanel__icon" data-icon="trash" aria-hidden />
+            )}
+          </button>
+          <button
+            type="button"
+            className="taskDetailPanel__iconBtn taskDetailPanel__close"
+            onClick={onClose}
+            aria-label="Close panel"
+          >
+            <span className="taskDetailPanel__icon" data-icon="x" aria-hidden />
+          </button>
+        </div>
       </div>
       <div className="taskDetailPanel__statusRow">
         <span className="badge badge--muted">{task.status.replace(/_/g, " ")}</span>
@@ -215,20 +240,17 @@ export function TaskDetailPanel({
         </div>
       </div>
       <div className="taskDetailPanel__footer">
-        <button
-          type="button"
-          className="taskDetailPanel__iconBtn taskDetailPanel__btn taskDetailPanel__btnDanger"
-          onClick={handleDelete}
-          disabled={isDeleting}
-          aria-label="Delete task"
-        >
-          {isDeleting ? (
-            <span className="taskDetailPanel__spinner" aria-hidden />
-          ) : (
-            <span className="taskDetailPanel__icon" data-icon="trash" aria-hidden />
-          )}
-        </button>
         <div className="taskDetailPanel__footerActions">
+          {task.status === "backlog" && (
+            <button
+              type="button"
+              className="taskDetailPanel__btn taskDetailPanel__btnPrimary"
+              onClick={() => onRun(task.id)}
+              disabled={isRunning}
+            >
+              {isRunning ? "AI working..." : "Let AI work"}
+            </button>
+          )}
           {task.status === "in_review" && (
             <>
               <button
@@ -243,12 +265,13 @@ export function TaskDetailPanel({
                 className="taskDetailPanel__btn taskDetailPanel__btnPrimary"
                 onClick={() => onReview(task.id, "approve")}
               >
-                Approve & continue
+                Approve & complete
               </button>
             </>
           )}
         </div>
       </div>
     </section>
+    </>
   );
 }

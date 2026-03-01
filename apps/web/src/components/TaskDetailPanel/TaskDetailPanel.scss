@@ -9,6 +9,14 @@
   }
 }
 
+.taskDetailPanel__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 39;
+  background: transparent;
+  cursor: default;
+}
+
 .taskDetailPanel {
   position: fixed;
   top: 0;
@@ -22,7 +30,8 @@
   flex-direction: column;
   z-index: 40;
   box-shadow: -4px 0 24px rgba(0, 0, 0, 0.06);
-  animation: taskDetailPanelSlideIn 0.25s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+  animation: taskDetailPanelSlideIn 0.25s cubic-bezier(0.32, 0.72, 0, 1)
+    forwards;
 }
 
 .taskDetailPanel__header {
@@ -124,6 +133,7 @@
 
 .taskDetailPanel__icon {
   width: 18px;
+  min-width: 18px;
   height: 18px;
   background: currentColor;
   mask: center/contain no-repeat;
@@ -150,6 +160,13 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+.taskDetailPanel__headerActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .taskDetailPanel__close {

@@ -120,6 +120,23 @@ export default function AppBoardPage() {
   });
 
   const activeTask = tasks.find((t) => t.id === activeTaskId) ?? null;
+  const isActiveTaskRunning = Boolean(
+    activeTask &&
+      runs.some(
+        (run) =>
+          run.task_id === activeTask.id &&
+          (run.status === "queued" || run.status === "running")
+      )
+  );
+
+  const loadTaskDetails = useCallback(async (taskId: string) => {
+    const [logsData, artifactsData] = await Promise.all([
+      apiFetch<{ logs: TaskLog[] }>(`/tasks/${taskId}/logs`),
+      apiFetch<{ artifacts: Artifact[] }>(`/tasks/${taskId}/artifacts`)
+    ]);
+    setLogs(logsData.logs);
+    setArtifacts(artifactsData.artifacts);
+  }, []);
 
   const loadAgents = useCallback(async () => {
     if (!workspaceId) return;
@@ -190,23 +207,17 @@ export default function AppBoardPage() {
   }
 
   async function runTask(taskId: string) {
-    const agentId = prompt("Agent id (optional):") || "";
-    const model = prompt("Model override (optional):") || "";
+    const task = tasks.find((t) => t.id === taskId);
     await apiFetch(`/tasks/${taskId}/run`, {
       method: "POST",
-      body: JSON.stringify({ agentId: agentId || undefined, model: model || undefined })
+      body: JSON.stringify({ agentId: task?.assigned_agent_id ?? undefined })
     });
     await load();
   }
 
   async function openTask(taskId: string) {
     setActiveTaskId(taskId);
-    const [logsData, artifactsData] = await Promise.all([
-      apiFetch<{ logs: TaskLog[] }>(`/tasks/${taskId}/logs`),
-      apiFetch<{ artifacts: Artifact[] }>(`/tasks/${taskId}/artifacts`)
-    ]);
-    setLogs(logsData.logs);
-    setArtifacts(artifactsData.artifacts);
+    await loadTaskDetails(taskId);
   }
 
   async function review(taskId: string, action: "approve" | "reject") {
@@ -229,6 +240,16 @@ export default function AppBoardPage() {
     const t = setTimeout(() => setSnackbarMessage(null), 3000);
     return () => clearTimeout(t);
   }, [snackbarMessage]);
+
+  useEffect(() => {
+    if (!activeTaskId || activeTask?.status !== "ai_working") return;
+
+    const interval = setInterval(() => {
+      loadTaskDetails(activeTaskId).catch(console.error);
+    }, 2500);
+
+    return () => clearInterval(interval);
+  }, [activeTask?.status, activeTaskId, loadTaskDetails]);
 
   return (
     <div className="appBoard">
@@ -295,6 +316,8 @@ export default function AppBoardPage() {
           task={activeTask}
           logs={logs}
           artifacts={artifacts}
+          onRun={runTask}
+          isRunning={isActiveTaskRunning}
           onClose={() => setActiveTaskId(null)}
           onReview={review}
           onDelete={async (taskId) => {

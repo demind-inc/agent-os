@@ -25,13 +25,14 @@ type TaskCardProps = {
 export function TaskCard({
   task,
   projectName,
-  statusColumns,
-  onUpdateStatus,
-  onDelete,
+  statusColumns: _statusColumns,
+  onUpdateStatus: _onUpdateStatus,
+  onDelete: _onDelete,
   onRun,
   onOpen,
 }: TaskCardProps) {
   const statusLabel = STATUS_LABELS[task.status] ?? task.status;
+  const canRun = task.status === "backlog";
 
   return (
     <div

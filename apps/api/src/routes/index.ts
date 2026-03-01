@@ -364,10 +364,17 @@ export async function registerRoutes(app: FastifyInstance) {
     const params = request.params as { taskId: string };
     const body = z.object({ agentId: z.string().optional(), model: z.string().optional() }).parse(request.body || {});
 
-    const { data: task } = await adminSupabase.from('tasks').select('project_id, projects(workspace_id)').eq('id', params.taskId).single();
+    const { data: task } = await adminSupabase
+      .from('tasks')
+      .select('status, project_id, projects(workspace_id)')
+      .eq('id', params.taskId)
+      .single();
     if (!task) return reply.status(404).send({ error: 'Task not found' });
     const workspaceId = (task as any).projects.workspace_id as string;
     await assertWorkspaceMember(user.id, workspaceId);
+    if (task.status !== 'backlog' && task.status !== 'in_review') {
+      return reply.status(400).send({ error: 'Task can only be run when in Backlog or In Review' });
+    }
 
     let agentId = body.agentId;
     if (!agentId) {

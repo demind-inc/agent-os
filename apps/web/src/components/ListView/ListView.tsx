@@ -62,13 +62,15 @@ export function ListView({ tasks, projectName, onOpen, onRun }: ListViewProps) {
                   <button type="button" className="listView__btn" onClick={() => onOpen(task.id)}>
                     Open
                   </button>
-                  <button
-                    type="button"
-                    className="listView__btn listView__btn--primary"
-                    onClick={() => onRun(task.id)}
-                  >
-                    Run
-                  </button>
+                  {task.status === "backlog" && (
+                    <button
+                      type="button"
+                      className="listView__btn listView__btn--primary"
+                      onClick={() => onRun(task.id)}
+                    >
+                      Run
+                    </button>
+                  )}
                 </div>
               </td>
             </tr>
