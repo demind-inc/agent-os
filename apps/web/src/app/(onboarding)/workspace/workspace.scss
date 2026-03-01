@@ -38,7 +38,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--accent-green);
+  color: var(--accent);
 }
 
 .workspaceTitle {
@@ -125,7 +125,7 @@
 
   &--active {
     background: var(--surface-green);
-    border-color: var(--accent-green);
+    border-color: var(--accent);
     border-width: 2px;
     color: var(--text-primary);
   }
@@ -133,7 +133,7 @@
 
 .workspaceSubmit {
   padding: 14px;
-  background: var(--btn-primary);
+  background: var(--accent);
     color: var(--text-inverse);
   border: none;
   border-radius: var(--radius-md);
@@ -143,7 +143,7 @@
   width: 100%;
 
   &:hover {
-    background: var(--btn-primary-hover);
+    background: var(--accent-hover);
   }
 }
 
@@ -184,6 +184,6 @@
   background: var(--border-light);
 
   &--active {
-    background: var(--accent-green);
+    background: var(--accent);
   }
 }

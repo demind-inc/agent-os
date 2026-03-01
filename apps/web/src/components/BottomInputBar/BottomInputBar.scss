@@ -28,7 +28,7 @@
   height: 36px;
   border-radius: 50%;
   border: none;
-  background: var(--accent-green);
+  background: var(--accent);
   color: var(--text-inverse);
   display: flex;
   align-items: center;
@@ -37,6 +37,6 @@
   flex-shrink: 0;
 
   &:hover {
-    background: var(--btn-primary-hover);
+    background: var(--accent-hover);
   }
 }

@@ -113,12 +113,12 @@
   }
 
   &--primary {
-    background: var(--btn-primary);
+    background: var(--accent);
     color: var(--text-inverse);
-    border-color: var(--btn-primary);
+    border-color: var(--accent);
 
     &:hover {
-      background: var(--btn-primary-hover);
+      background: var(--accent-hover);
     }
   }
 }

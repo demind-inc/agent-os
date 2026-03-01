@@ -47,7 +47,7 @@
   height: 40px;
   border-radius: 8px;
   background: var(--surface-purple);
-  color: var(--accent-purple);
+  color: var(--accent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -157,7 +157,7 @@
   border-radius: 16px;
   font-size: 12px;
   background: var(--surface-purple, rgba(124, 58, 237, 0.12));
-  color: var(--accent-purple, #7c3aed);
+  color: var(--accent);
 }
 
 .newTaskPanel__noAgents {
@@ -201,12 +201,12 @@
 
   &--primary {
     border: none;
-    background: var(--btn-primary-purple);
+    background: var(--accent);
     color: var(--text-inverse);
     font-weight: 600;
 
     &:hover {
-      background: var(--btn-primary-purple-hover);
+      background: var(--accent-hover);
     }
   }
 }

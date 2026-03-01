@@ -22,14 +22,14 @@
 
   &__submit {
     padding: 10px 20px;
-    background: var(--btn-primary-purple);
+    background: var(--accent);
     color: var(--text-inverse);
     border: none;
     border-radius: 8px;
     cursor: pointer;
 
     &:hover {
-      background: var(--btn-primary-purple-hover);
+      background: var(--accent-hover);
     }
   }
 

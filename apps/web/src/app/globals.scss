@@ -4,7 +4,7 @@
   --accent-blue: #3b82f6;
   --accent-green: #10b981;
   --accent-orange: #f59e0b;
-  --accent-purple: #8b5cf6;
+  --accent-purple: #7c3aed;
   --accent-red: #ef4444;
   --accent-teal: #14b8a6;
   --accent-indigo: #6366f1;
@@ -22,11 +22,13 @@
   --border-light: #e5e7eb;
   --border-medium: #d1d5db;
 
-  // Buttons (green = default, purple = alt e.g. New Task panel)
-  --btn-primary: #10b981;
-  --btn-primary-hover: #059669;
+  // Primary accent & buttons (#7C3AED across all screens)
+  --btn-primary: #7c3aed;
+  --btn-primary-hover: #6d28d9;
   --btn-primary-purple: #7c3aed;
   --btn-primary-purple-hover: #6d28d9;
+  --accent: #7c3aed;
+  --accent-hover: #6d28d9;
 
   // Text
   --text-primary: #1a1a1a;
@@ -38,11 +40,11 @@
   --column-backlog: #1a1a1a;
   --column-needs-input: #f59e0b;
   --column-review: #6b7280;
-  --column-working: #10b981;
+  --column-working: #7c3aed;
   --status-awaiting: #f59e0b;
   --status-scraping: #6366f1;
   --status-urgent: #ef4444;
-  --status-working: #10b981;
+  --status-working: #7c3aed;
 
   // Semantic (success / warn / danger)
   --success-bg: #dcfce7;

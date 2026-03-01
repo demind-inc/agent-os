@@ -33,7 +33,7 @@
 
 .newTaskForm__submit {
   padding: 10px 20px;
-  background: var(--btn-primary);
+  background: var(--accent);
   color: var(--text-inverse);
   border: none;
   border-radius: var(--radius-md);
@@ -43,6 +43,6 @@
   align-self: flex-start;
 
   &:hover {
-    background: var(--btn-primary-hover);
+    background: var(--accent-hover);
   }
 }

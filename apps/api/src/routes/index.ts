@@ -16,6 +16,18 @@ const updateTaskSchema = z.object({
   metadata: z.record(z.any()).optional()
 });
 
+function deriveSkillNameFromUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    const path = u.pathname.replace(/\/+$/, "");
+    const segment = path.split("/").filter(Boolean).pop() || "imported-skill";
+    const base = segment.replace(/\.(md|txt|skill)$/i, "").replace(/[^a-z0-9-_]/gi, "-").replace(/-+/g, "-");
+    return base || "imported-skill";
+  } catch {
+    return "imported-skill";
+  }
+}
+
 export async function registerRoutes(app: FastifyInstance) {
   app.get('/health', async () => ({ ok: true }));
 
@@ -149,6 +161,70 @@ export async function registerRoutes(app: FastifyInstance) {
     await adminSupabase.from('workspace_members').insert({ workspace_id: workspace.id, user_id: user.id, role: 'owner' });
 
     return workspace;
+  });
+
+  app.get('/workspaces/:workspaceId', async (request, reply) => {
+    const user = (request as any).user;
+    const params = request.params as { workspaceId: string };
+    await assertWorkspaceMember(user.id, params.workspaceId);
+
+    const { data, error } = await adminSupabase.from('workspaces').select('id, name').eq('id', params.workspaceId).single();
+    if (error || !data) return reply.status(404).send({ error: 'Workspace not found' });
+    return data;
+  });
+
+  app.patch('/workspaces/:workspaceId', async (request, reply) => {
+    const user = (request as any).user;
+    const params = request.params as { workspaceId: string };
+    const body = z.object({ name: z.string().min(1) }).parse(request.body);
+
+    const { data: workspace } = await adminSupabase.from('workspaces').select('owner_id').eq('id', params.workspaceId).single();
+    if (!workspace || workspace.owner_id !== user.id) return reply.status(403).send({ error: 'Only the workspace owner can update the workspace' });
+
+    const { data, error } = await adminSupabase.from('workspaces').update({ name: body.name }).eq('id', params.workspaceId).select('id, name').single();
+    if (error || !data) return reply.status(400).send({ error: error?.message || 'Failed to update workspace' });
+    return data;
+  });
+
+  app.get('/workspaces/:workspaceId/members', async (request, reply) => {
+    const user = (request as any).user;
+    const params = request.params as { workspaceId: string };
+    await assertWorkspaceMember(user.id, params.workspaceId);
+
+    const { data: rows, error } = await adminSupabase
+      .from('workspace_members')
+      .select('id, user_id, role')
+      .eq('workspace_id', params.workspaceId);
+
+    if (error) return reply.status(400).send({ error: error.message });
+    if (!rows?.length) return { members: [] };
+
+    const userIds = [...new Set(rows.map((r: { user_id: string }) => r.user_id))];
+    const { data: profiles } = await adminSupabase.from('profiles').select('id, email, full_name, avatar_url').in('id', userIds);
+    const profileMap = new Map((profiles || []).map((p: { id: string }) => [p.id, p]));
+
+    const members = rows.map((row: { id: string; user_id: string; role: string }) => {
+      const p = profileMap.get(row.user_id);
+      return {
+        id: row.id,
+        user_id: row.user_id,
+        role: row.role,
+        email: p?.email ?? '',
+        full_name: p?.full_name ?? null,
+        avatar_url: p?.avatar_url ?? null
+      };
+    });
+    return { members };
+  });
+
+  app.get('/workspaces/:workspaceId/integrations', async (request, reply) => {
+    const user = (request as any).user;
+    const params = request.params as { workspaceId: string };
+    await assertWorkspaceMember(user.id, params.workspaceId);
+
+    const { data, error } = await adminSupabase.from('integrations').select('id, provider, status').eq('workspace_id', params.workspaceId);
+    if (error) return reply.status(400).send({ error: error.message });
+    return { integrations: data || [] };
   });
 
   app.get('/workspaces/:workspaceId/projects', async (request, reply) => {
@@ -503,6 +579,21 @@ export async function registerRoutes(app: FastifyInstance) {
     return { ok: true };
   });
 
+  app.get('/workspaces/:workspaceId/skills', async (request, reply) => {
+    const user = (request as any).user;
+    const params = request.params as { workspaceId: string };
+    await assertWorkspaceMember(user.id, params.workspaceId);
+
+    const { data, error } = await adminSupabase
+      .from('workspace_skills')
+      .select('id, name, created_at')
+      .eq('workspace_id', params.workspaceId)
+      .order('created_at', { ascending: false });
+
+    if (error) return reply.status(400).send({ error: error.message });
+    return { skills: data || [] };
+  });
+
   app.post('/workspaces/:workspaceId/skills', async (request, reply) => {
     const user = (request as any).user;
     const params = request.params as { workspaceId: string };
@@ -518,5 +609,63 @@ export async function registerRoutes(app: FastifyInstance) {
 
     if (error || !data) return reply.status(400).send({ error: error?.message || 'Failed to import skill' });
     return data;
+  });
+
+  app.post('/workspaces/:workspaceId/skills/import-from-url', async (request, reply) => {
+    const user = (request as any).user;
+    const params = request.params as { workspaceId: string };
+    const body = z.object({
+      url: z.string().url(),
+      name: z.string().min(1).optional()
+    }).parse(request.body);
+
+    await assertWorkspaceMember(user.id, params.workspaceId);
+
+    const res = await fetch(body.url, {
+      headers: { Accept: 'text/plain,text/markdown,application/octet-stream,*/*' },
+      redirect: 'follow',
+      signal: AbortSignal.timeout(15000)
+    });
+    if (!res.ok) {
+      return reply.status(400).send({ error: `Failed to fetch URL: ${res.status}` });
+    }
+    const content = await res.text();
+    if (content.length > 500_000) {
+      return reply.status(400).send({ error: 'Skill content too large (max 500KB)' });
+    }
+
+    const name = body.name?.trim() || deriveSkillNameFromUrl(body.url);
+
+    const { data, error } = await adminSupabase
+      .from('workspace_skills')
+      .insert({ workspace_id: params.workspaceId, name, content, created_by: user.id })
+      .select('id, name')
+      .single();
+
+    if (error || !data) return reply.status(400).send({ error: error?.message || 'Failed to save imported skill' });
+    return data;
+  });
+
+  app.get('/user/settings', async (request, reply) => {
+    const user = (request as any).user;
+    const query = request.query as { key?: string };
+    let q = adminSupabase.from('user_settings').select('key, value').eq('user_id', user.id);
+    if (query.key) q = q.eq('key', query.key);
+    const { data, error } = await q;
+    if (error) return reply.status(400).send({ error: error.message });
+    if (query.key) return { key: query.key, value: (data?.[0] as { value?: unknown })?.value ?? null };
+    const settings = Object.fromEntries((data || []).map((row: { key: string; value: unknown }) => [row.key, row.value]));
+    return { settings };
+  });
+
+  app.patch('/user/settings', async (request, reply) => {
+    const user = (request as any).user;
+    const body = z.object({ key: z.string().min(1), value: z.any() }).parse(request.body);
+    const { error } = await adminSupabase.from('user_settings').upsert(
+      { user_id: user.id, key: body.key, value: body.value },
+      { onConflict: 'user_id,key' }
+    );
+    if (error) return reply.status(400).send({ error: error.message });
+    return { key: body.key, value: body.value };
   });
 }

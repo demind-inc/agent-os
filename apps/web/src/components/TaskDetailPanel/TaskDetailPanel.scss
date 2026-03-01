@@ -160,11 +160,11 @@
 }
 
 .taskDetailPanel__btnPrimary {
-  background: var(--btn-primary);
+  background: var(--accent);
   color: var(--text-inverse);
   border: none;
 
   &:hover {
-    background: var(--btn-primary-hover);
+    background: var(--accent-hover);
   }
 }
