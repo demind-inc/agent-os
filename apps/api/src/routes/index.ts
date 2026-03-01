@@ -12,7 +12,7 @@ const createTaskSchema = z.object({
 const updateTaskSchema = z.object({
   title: z.string().optional(),
   description: z.string().optional(),
-  status: z.enum(["backlog", "ai_working", "needs_human_input", "in_review", "done", "failed"]).optional(),
+  status: z.enum(["backlog", "ai_working", "in_review", "done", "failed"]).optional(),
   metadata: z.record(z.any()).optional()
 });
 

@@ -33,7 +33,6 @@ export function StatusColumn({
   const isBacklog = statusKey === "backlog";
   const showDot =
     statusKey === "ai_working" ||
-    statusKey === "needs_human_input" ||
     statusKey === "failed";
 
   return (

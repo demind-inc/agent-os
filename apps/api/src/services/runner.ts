@@ -35,7 +35,7 @@ async function execute(runId: string) {
 
   if (needsOauth) {
     await adminSupabase.from("agent_runs").update({ status: "awaiting_input" }).eq("id", runId);
-    await adminSupabase.from("tasks").update({ status: "needs_human_input" }).eq("id", run.task_id);
+    await adminSupabase.from("tasks").update({ status: "in_review" }).eq("id", run.task_id);
     await log(run.id, run.task_id, "warn", "OAuth approval needed", { provider: "github" });
     return;
   }

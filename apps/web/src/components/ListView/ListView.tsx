@@ -6,7 +6,6 @@ import "./ListView.scss";
 const STATUS_PILL_CLASS: Record<string, string> = {
   backlog: "listView__statusPill--muted",
   ai_working: "listView__statusPill--success",
-  needs_human_input: "listView__statusPill--warn",
   in_review: "listView__statusPill--muted",
   done: "listView__statusPill--muted",
   failed: "listView__statusPill--danger"

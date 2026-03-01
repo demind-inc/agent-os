@@ -6,7 +6,6 @@ import "./TaskCard.scss";
 const STATUS_LABELS: Record<TaskStatus, string> = {
   backlog: "Backlog",
   ai_working: "Working",
-  needs_human_input: "Needs input",
   in_review: "In review",
   done: "Done",
   failed: "Failed",
@@ -33,6 +32,12 @@ export function TaskCard({
 }: TaskCardProps) {
   const statusLabel = STATUS_LABELS[task.status] ?? task.status;
   const canRun = task.status === "backlog";
+
+  function handleAccomplishClick(e: React.MouseEvent) {
+    e.stopPropagation();
+    e.preventDefault();
+    onRun(task.id);
+  }
 
   return (
     <div
@@ -67,6 +72,18 @@ export function TaskCard({
           —
         </div>
       </div>
+      {canRun && (
+        <div className="taskCard__actions" onClick={(e) => e.stopPropagation()}>
+          <button
+            type="button"
+            className="taskCard__btn taskCard__btn--primary"
+            onClick={handleAccomplishClick}
+            aria-label="Let AI accomplish this task"
+          >
+            Let AI accomplish
+          </button>
+        </div>
+      )}
     </div>
   );
 }

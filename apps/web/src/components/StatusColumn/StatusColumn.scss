@@ -1,6 +1,5 @@
 $col-backlog: var(--column-backlog);
 $col-working: var(--column-working);
-$col-needs: var(--column-needs-input);
 $col-review: var(--column-review);
 
 .statusColumn {
@@ -8,12 +7,6 @@ $col-review: var(--column-review);
   flex-direction: column;
   gap: 16px;
   min-height: 200px;
-
-  &--needsHuman {
-    .statusColumn__dot {
-      background: $col-needs;
-    }
-  }
 
   &__header {
     display: flex;
@@ -80,13 +73,6 @@ $col-review: var(--column-review);
 .statusColumn[data-status="ai_working"] .statusColumn__count {
   background: var(--success-bg);
   color: var(--success-fg);
-}
-.statusColumn[data-status="needs_human_input"] .statusColumn__dot {
-  background: $col-needs;
-}
-.statusColumn[data-status="needs_human_input"] .statusColumn__count {
-  background: var(--warn-bg);
-  color: var(--warn-fg);
 }
 .statusColumn[data-status="in_review"] .statusColumn__count,
 .statusColumn[data-status="done"] .statusColumn__count {
