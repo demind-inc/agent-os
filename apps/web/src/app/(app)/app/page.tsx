@@ -21,7 +21,14 @@ type TaskLog = {
   created_at: string;
   payload: Record<string, unknown> | null;
 };
-type Artifact = { id: string; type: string; title: string; url: string | null };
+type Artifact = {
+  id: string;
+  type: string;
+  title: string;
+  url: string | null;
+  created_at?: string;
+  metadata?: Record<string, unknown>;
+};
 
 export default function AppBoardPage() {
   const router = useRouter();
@@ -126,6 +133,46 @@ export default function AppBoardPage() {
       supabase.removeChannel(channel).catch(console.error);
     };
   }, [projectId]);
+
+  // Stream task_logs for the active task so command output updates live
+  useEffect(() => {
+    if (!activeTaskId) return;
+
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`task-logs-${activeTaskId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "task_logs",
+          filter: `task_id=eq.${activeTaskId}`,
+        },
+        (payload: { new: TaskLog }) => {
+          setLogs((prev) => [payload.new, ...prev]);
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "task_logs",
+          filter: `task_id=eq.${activeTaskId}`,
+        },
+        (payload: { new: TaskLog }) => {
+          setLogs((prev) =>
+            prev.map((log) => (log.id === payload.new.id ? payload.new : log))
+          );
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel).catch(console.error);
+    };
+  }, [activeTaskId]);
 
   const filteredTasks = tasks.filter((task) => {
     if (!search.trim()) return true;
