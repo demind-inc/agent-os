@@ -8,9 +8,19 @@ Auth: `Authorization: Bearer <access_token>` (user JWT from AgentOS)
 
 ### POST /runs/external
 
-Register an external run and get a runId for streaming.
+Register an external run and get a runId for streaming. Either link to an existing task or create a new one.
 
-**Request:**
+**Request (create new task):**
+```json
+{
+  "projectId": "uuid",
+  "source": "codex" | "claude" | "openclaw",
+  "title": "optional task title",
+  "agentId": "uuid (optional)"
+}
+```
+
+**Request (link to existing task):**
 ```json
 {
   "taskId": "uuid",
@@ -18,6 +28,8 @@ Register an external run and get a runId for streaming.
   "agentId": "uuid (optional)"
 }
 ```
+
+When `projectId` is provided, a new task is created with status "AI Working" and title "External sync from {source}" (or custom `title`). The run streams to that task's execution console.
 
 **Response:**
 ```json
@@ -73,12 +85,13 @@ Signal run completion. Persists execution log and updates task status.
 ## Example Flow
 
 ```bash
-# 1. Register
+# 1. Create task and register (uses projectId from AGENTOS_PROJECT_ID)
 curl -X POST "$API_URL/runs/external" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"taskId":"<task-uuid>","source":"codex"}'
+  -d '{"projectId":"<project-uuid>","source":"codex"}'
 # -> { "runId": "...", "taskId": "...", "status": "running" }
+# Task is created with "AI Working" status; open it in AgentOS to see the stream
 
 # 2. Emit a log
 curl -X POST "$API_URL/runs/$RUN_ID/chunks" \

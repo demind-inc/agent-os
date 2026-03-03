@@ -18,6 +18,7 @@ export function ApiKeysTab({ loading: externalLoading, onLoad }: ApiKeysTabProps
   const [loading, setLoading] = useState(true);
   const [configured, setConfigured] = useState<ProviderApiKeysState>({});
   const [tokenCopied, setTokenCopied] = useState(false);
+  const [projectIdCopied, setProjectIdCopied] = useState(false);
   const [anthropicKey, setAnthropicKey] = useState("");
   const [openaiKey, setOpenaiKey] = useState("");
   const [savingProvider, setSavingProvider] = useState<"anthropic" | "openai" | null>(null);
@@ -169,31 +170,62 @@ export function ApiKeysTab({ loading: externalLoading, onLoad }: ApiKeysTabProps
       <div className="settingsPage__cardSection">
         <h3 className="settingsPage__cardTitle">External Sync (Codex, Cursor, Claude, OpenClaw)</h3>
         <p className="settingsPage__fieldHint">
-          Use this token to sync execution logs from external agents. When the agent prompts, paste the token in chat.
-          See the agentos-sync skill README for setup.
+          Set these in your environment so external agents create tasks and stream to the execution console. No chat
+          prompts needed.
         </p>
-        <button
-          type="button"
-          className="settingsPage__btn settingsPage__btn--secondary"
-          onClick={async () => {
-            const supabase = createClient();
-            const { data: { session }, error } = await supabase.auth.refreshSession();
-            const token = session?.access_token;
-            if (error || !token) {
-              setMessage({ type: "err", text: "Session expired. Please log in again." });
-              setTimeout(() => setMessage(null), 4000);
-              return;
-            }
-            if (typeof window !== "undefined") {
-              localStorage.setItem("agentos_access_token", token);
-            }
-            await navigator.clipboard.writeText(token);
-            setTokenCopied(true);
-            setTimeout(() => setTokenCopied(false), 2000);
-          }}
-        >
-          {tokenCopied ? "Copied!" : "Copy access token"}
-        </button>
+        <div className="settingsPage__apiKeyRow" style={{ marginBottom: "0.5rem" }}>
+          <span className="settingsPage__fieldHint" style={{ flex: 1 }}>
+            Access token (AGENTOS_ACCESS_TOKEN)
+          </span>
+          <button
+            type="button"
+            className="settingsPage__btn settingsPage__btn--secondary"
+            onClick={async () => {
+              const supabase = createClient();
+              const { data: { session }, error } = await supabase.auth.refreshSession();
+              const token = session?.access_token;
+              if (error || !token) {
+                setMessage({ type: "err", text: "Session expired. Please log in again." });
+                setTimeout(() => setMessage(null), 4000);
+                return;
+              }
+              if (typeof window !== "undefined") {
+                localStorage.setItem("agentos_access_token", token);
+              }
+              await navigator.clipboard.writeText(token);
+              setTokenCopied(true);
+              setTimeout(() => setTokenCopied(false), 2000);
+            }}
+          >
+            {tokenCopied ? "Copied!" : "Copy access token"}
+          </button>
+        </div>
+        <div className="settingsPage__apiKeyRow">
+          <span className="settingsPage__fieldHint" style={{ flex: 1 }}>
+            Project ID (AGENTOS_PROJECT_ID) — tasks are created in this project
+          </span>
+          <button
+            type="button"
+            className="settingsPage__btn settingsPage__btn--secondary"
+            onClick={async () => {
+              const projectId =
+                typeof window !== "undefined" ? localStorage.getItem("agentos_project_id") : null;
+              if (projectId) {
+                await navigator.clipboard.writeText(projectId);
+                setProjectIdCopied(true);
+                setTimeout(() => setProjectIdCopied(false), 2000);
+              } else {
+                setMessage({ type: "err", text: "Open the app board and select a project first." });
+                setTimeout(() => setMessage(null), 4000);
+              }
+            }}
+          >
+            {projectIdCopied ? "Copied!" : "Copy project ID"}
+          </button>
+        </div>
+        <p className="settingsPage__fieldHint" style={{ marginTop: "0.5rem" }}>
+          Open the app board first so the project is set. Then copy both values and add to your env.
+        </p>
       </div>
     </div>
   );

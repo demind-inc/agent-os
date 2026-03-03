@@ -5,10 +5,10 @@ Stream execution logs and output from Codex, Cursor, Claude, or OpenClaw to Agen
 ## Prerequisites
 
 - An AgentOS instance (default: `http://localhost:4000`)
-- An AgentOS access token (Settings → API Keys → Copy access token — use a fresh token; expired tokens are not copied)
-- A task ID in AgentOS to link the session to
+- **AGENTOS_ACCESS_TOKEN** — from Settings → API Keys → Copy access token (refreshes session; no expired tokens)
+- **AGENTOS_PROJECT_ID** — from Settings → API Keys → Copy project ID (open the app board first to set it)
 
-**Token in chat:** When you invoke the skill, the agent will ask you to paste the access token in chat. Get a fresh token from Settings → API Keys → Copy access token, then paste it when prompted.
+**No chat prompts:** Set both in your environment. The skill creates tasks automatically and streams to the execution console. No task ID or project ID needed in chat.
 
 ---
 
@@ -115,7 +115,8 @@ Register the skill in `openclaw.json`:
       "enabled": true,
       "config": {
         "apiUrl": "${AGENTOS_API_URL}",
-        "accessToken": "${AGENTOS_ACCESS_TOKEN}"
+        "accessToken": "${AGENTOS_ACCESS_TOKEN}",
+        "projectId": "${AGENTOS_PROJECT_ID}"
       }
     }
   }
@@ -136,27 +137,13 @@ If OpenClaw supports ClawHub and this skill is published there, you can also use
 
 The access token is your AgentOS session JWT. You need it to authenticate API calls from external agents.
 
-**Option 1: From Settings (recommended)**
+**From Settings:** Settings → API Keys → External Sync → **Copy access token**. The button refreshes your session first and only copies a valid, non-expired token. If your session is expired, log in again.
 
-1. Log in to AgentOS.
-2. Go to **Settings** → **API Keys**.
-3. Scroll to **External Sync (Codex, Cursor, Claude, OpenClaw)**.
-4. Click **Copy access token**. The button refreshes your session first and only copies a valid, non-expired token. If your session is expired, log in again.
+### Project ID (`AGENTOS_PROJECT_ID`)
 
-**Option 2: From the browser**
+The project UUID where tasks are created. External agents create new tasks in this project.
 
-1. Log in to AgentOS in your browser.
-2. Open DevTools (F12 or right-click → Inspect).
-3. Go to **Application** (Chrome) or **Storage** (Firefox) → **Local Storage**.
-4. Select your AgentOS origin (e.g. `http://localhost:3000`).
-5. Find the key `agentos_access_token` and copy its value.
-
-**Option 3: From the console**
-
-1. Log in to AgentOS.
-2. Open DevTools → **Console**.
-3. Run: `copy(localStorage.getItem('agentos_access_token'))`
-4. The token is now in your clipboard.
+**From Settings:** Open the app board first (so the project is set), then Settings → API Keys → External Sync → **Copy project ID**.
 
 **Security:** Treat the token like a password. It expires when your session ends. Do not commit it to git or share it.
 
@@ -167,92 +154,35 @@ The access token is your AgentOS session JWT. You need it to authenticate API ca
 
 ---
 
-## Connecting the Skill: Token in Chat
+## Configuration
 
-**On all platforms (Codex, Cursor, Claude, OpenClaw), the agent will ask you to paste the access token in chat when you invoke the skill.** This is the recommended flow—no env vars required.
+Set these environment variables. No chat prompts—the skill creates tasks and streams automatically.
 
-1. Get a fresh token: AgentOS → Settings → API Keys → Copy access token.
-2. Invoke the skill (e.g. `/agentos-sync` or ask to sync with AgentOS).
-3. When the agent asks for the token, paste it in chat.
-4. Provide the task ID when asked.
-
-Avoid pasting the token in shared or logged channels. The token expires with your session; get a new one if you see 401 errors.
-
-### Optional: Environment variables
-
-Set these env vars if you prefer not to paste in chat. The agent will still prompt if missing or if the API returns 401:
-
-| Variable               | Description          | Default                 |
-| ---------------------- | -------------------- | ----------------------- |
-| `AGENTOS_ACCESS_TOKEN` | Your AgentOS JWT      | Optional (paste in chat) |
-| `AGENTOS_API_URL`      | AgentOS API base URL | `http://localhost:4000` |
+| Variable               | Description                    | Default                 |
+| ---------------------- | ------------------------------ | ----------------------- |
+| `AGENTOS_ACCESS_TOKEN` | Your AgentOS JWT               | Required                |
+| `AGENTOS_PROJECT_ID`  | Project UUID for new tasks     | Required                |
+| `AGENTOS_API_URL`      | AgentOS API base URL           | `http://localhost:4000` |
 
 **Codex / Cursor / Claude:** Add to shell profile or `.env`:
 
 ```bash
 export AGENTOS_ACCESS_TOKEN="your-token-here"
+export AGENTOS_PROJECT_ID="your-project-uuid"
 export AGENTOS_API_URL="http://localhost:4000"
 ```
 
-Or in `~/.codex/config.toml` (if Codex supports env passthrough), ensure the process inherits these env vars. Codex typically inherits from the terminal where it was launched.
-
-### Cursor
-
-**Project-level:** Create `.env` in your project root (add to `.gitignore`):
-
-```
-AGENTOS_ACCESS_TOKEN=your-token-here
-AGENTOS_API_URL=http://localhost:4000
-```
-
-**User-level:** Add to `~/.zshrc` or `~/.bashrc` so Cursor’s integrated terminal has them.
-
-### Claude (Claude Code / Claude Desktop)
-
-Add to your shell profile so the agent process can read them:
-
-```bash
-export AGENTOS_ACCESS_TOKEN="your-token-here"
-export AGENTOS_API_URL="http://localhost:4000"
-```
-
-### OpenClaw
-
-Use `openclaw.json` with env var references:
-
-```json
-{
-  "skills": {
-    "agentos-sync": {
-      "enabled": true,
-      "config": {
-        "apiUrl": "${AGENTOS_API_URL}",
-        "accessToken": "${AGENTOS_ACCESS_TOKEN}"
-      }
-    }
-  }
-}
-```
-
-Then set the variables before starting OpenClaw:
-
-```bash
-export AGENTOS_ACCESS_TOKEN="your-token-here"
-export AGENTOS_API_URL="http://localhost:4000"
-openclaw
-```
-
-Or use OpenClaw’s secrets (if available): `/secrets set AGENTOS_ACCESS_TOKEN your-token-here`
+**OpenClaw:** Use `${AGENTOS_ACCESS_TOKEN}` and `${AGENTOS_PROJECT_ID}` in config; set env vars before starting.
 
 ---
 
 ## Usage
 
-1. **Open the task in AgentOS** and copy its task ID (UUID). Keep the task detail panel open to see realtime logs.
-2. In your agent (Codex/Cursor/Claude/OpenClaw), ask to sync with AgentOS and provide the task ID.
-3. The agent will register the session, stream chunks as it works, and signal done when finished.
-4. Watch the execution console in AgentOS in realtime.
+1. **Set env vars** (one-time): `AGENTOS_ACCESS_TOKEN` and `AGENTOS_PROJECT_ID` from Settings → API Keys.
+2. In your agent (Codex/Cursor/Claude/OpenClaw), ask to sync with AgentOS.
+3. The skill creates a task with "AI Working" status and streams all output to the execution console.
+4. Open AgentOS and view the new task to see realtime logs.
 
-**Realtime streaming:** The app receives logs via WebSocket. Open the task in AgentOS before or during the external agent's execution. Chunks sent before you open the task are buffered and replayed when you connect. When the run completes, the full execution log is also saved to the task for later viewing.
+**Realtime streaming:** A task is created automatically when the external agent starts. Open the task in AgentOS to see the stream. Chunks sent before you open the task are buffered and replayed when you connect. When the run completes, the full execution log is saved to the task.
 
-You can also invoke explicitly: type `/agentos-sync` (or `$agentos-sync` in Codex) and provide the task ID when prompted.
+Invoke explicitly: type `/agentos-sync` (or `$agentos-sync` in Codex).

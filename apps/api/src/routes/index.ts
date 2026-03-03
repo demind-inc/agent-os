@@ -418,20 +418,66 @@ export async function registerRoutes(app: FastifyInstance) {
     const user = (request as any).user;
     const body = z
       .object({
-        taskId: z.string().uuid(),
+        taskId: z.string().uuid().optional(),
+        projectId: z.string().uuid().optional(),
         source: z.enum(['codex', 'claude', 'openclaw']),
         agentId: z.string().uuid().optional(),
+        title: z.string().optional(),
+      })
+      .refine((b) => b.taskId != null || b.projectId != null, {
+        message: 'Either taskId or projectId is required',
       })
       .parse(request.body);
 
-    const { data: task } = await adminSupabase
-      .from('tasks')
-      .select('id, project_id, projects(workspace_id)')
-      .eq('id', body.taskId)
-      .single();
-    if (!task) return reply.status(404).send({ error: 'Task not found' });
-    const workspaceId = (task as any).projects?.workspace_id as string;
-    await assertWorkspaceMember(user.id, workspaceId);
+    let taskId: string;
+    let workspaceId: string;
+
+    if (body.taskId) {
+      const { data: task } = await adminSupabase
+        .from('tasks')
+        .select('id, project_id, projects(workspace_id)')
+        .eq('id', body.taskId)
+        .single();
+      if (!task) return reply.status(404).send({ error: 'Task not found' });
+      workspaceId = (task as any).projects?.workspace_id as string;
+      taskId = task.id;
+      await assertWorkspaceMember(user.id, workspaceId);
+    } else {
+      const projectId = body.projectId!;
+      const { data: project } = await adminSupabase
+        .from('projects')
+        .select('workspace_id')
+        .eq('id', projectId)
+        .single();
+      if (!project) return reply.status(404).send({ error: 'Project not found' });
+      workspaceId = project.workspace_id;
+      await assertWorkspaceMember(user.id, workspaceId);
+
+      const { data: firstAgent } = await adminSupabase
+        .from('agents')
+        .select('id')
+        .eq('workspace_id', workspaceId)
+        .order('created_at')
+        .limit(1)
+        .maybeSingle();
+      if (!firstAgent) return reply.status(400).send({ error: 'No agents configured' });
+
+      const taskTitle = body.title ?? `External sync from ${body.source}`;
+      const { data: newTask, error: taskError } = await adminSupabase
+        .from('tasks')
+        .insert({
+          project_id: projectId,
+          title: taskTitle,
+          description: '',
+          status: 'ai_working',
+          assigned_agent_id: firstAgent.id,
+          metadata: {},
+        })
+        .select('id')
+        .single();
+      if (taskError || !newTask) return reply.status(400).send({ error: taskError?.message || 'Failed to create task' });
+      taskId = newTask.id;
+    }
 
     let agentId = body.agentId;
     if (!agentId) {
@@ -449,7 +495,7 @@ export async function registerRoutes(app: FastifyInstance) {
     const { data: run, error } = await adminSupabase
       .from('agent_runs')
       .insert({
-        task_id: body.taskId,
+        task_id: taskId,
         agent_id: agentId!,
         status: 'running',
         source: body.source,
@@ -462,7 +508,7 @@ export async function registerRoutes(app: FastifyInstance) {
 
     if (error || !run) return reply.status(400).send({ error: error?.message || 'Failed to create run' });
 
-    await adminSupabase.from('tasks').update({ status: 'ai_working' }).eq('id', body.taskId);
+    await adminSupabase.from('tasks').update({ status: 'ai_working' }).eq('id', taskId);
 
     return { runId: run.id, taskId: run.task_id, status: run.status };
   });
