@@ -398,7 +398,7 @@ Rules:
     });
     lastResponse = response;
 
-    const contentBlocks = response.content as Array<{ type: string; [key: string]: unknown }>;
+    const contentBlocks = response.content as unknown as Array<{ type: string; [key: string]: unknown }>;
     const textBlocks = contentBlocks.filter(
       (b): b is { type: "text"; text: string } => b.type === "text"
     );
