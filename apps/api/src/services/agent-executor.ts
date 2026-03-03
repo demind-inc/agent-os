@@ -6,7 +6,12 @@
  * The agent can access GitHub via tools when the workspace has a connected integration.
  */
 
-import Anthropic from "@anthropic-ai/sdk";
+import { Anthropic } from "@anthropic-ai/sdk";
+import type {
+  Message,
+  MessageParam,
+  Tool,
+} from "@anthropic-ai/sdk/resources/messages";
 import type { StreamChunk } from "../types/stream-chunk.js";
 import { executeGitHubTool, type GitHubToolName } from "./github-tools.js";
 
@@ -46,7 +51,7 @@ function resolveModel(slug: string): string {
   return map[slug] ?? slug;
 }
 
-const BASE_TOOLS: Anthropic.Tool[] = [
+const BASE_TOOLS: Tool[] = [
   {
     name: "request_user_input",
     description:
@@ -64,7 +69,7 @@ const BASE_TOOLS: Anthropic.Tool[] = [
   },
 ];
 
-const GITHUB_TOOLS: Anthropic.Tool[] = [
+const GITHUB_TOOLS: Tool[] = [
   {
     name: "github_search_repositories",
     description:
@@ -211,7 +216,7 @@ const GITHUB_TOOLS: Anthropic.Tool[] = [
   },
 ];
 
-function getTools(githubAccessToken: string | null): Anthropic.Tool[] {
+function getTools(githubAccessToken: string | null): Tool[] {
   return githubAccessToken ? [...BASE_TOOLS, ...GITHUB_TOOLS] : BASE_TOOLS;
 }
 
@@ -380,7 +385,7 @@ Rules:
 
   const MAX_TOOL_ROUNDS = 10;
   let round = 0;
-  let lastResponse!: Anthropic.Message;
+  let lastResponse!: Message;
 
   while (round < MAX_TOOL_ROUNDS) {
     round++;
@@ -388,13 +393,18 @@ Rules:
       model,
       max_tokens: 20000,
       system: systemPrompt,
-      messages: messages as Anthropic.MessageParam[],
-      tools: tools as Anthropic.Tool[],
+      messages: messages as MessageParam[],
+      tools: tools as Tool[],
     });
     lastResponse = response;
 
-    const textBlocks = response.content.filter((b) => b.type === "text");
-    const toolUseBlocks = response.content.filter((b) => b.type === "tool_use");
+    const contentBlocks = response.content as Array<{ type: string; [key: string]: unknown }>;
+    const textBlocks = contentBlocks.filter(
+      (b): b is { type: "text"; text: string } => b.type === "text"
+    );
+    const toolUseBlocks = contentBlocks.filter(
+      (b): b is { type: "tool_use"; name: string; id: string; input: unknown } => b.type === "tool_use"
+    );
     const stopReason = (response as { stop_reason?: string }).stop_reason;
 
     for (const block of textBlocks) {
