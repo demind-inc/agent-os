@@ -1,6 +1,6 @@
 ---
 name: agentos-sync
-description: Sync execution logs and output to AgentOS. Use when the user wants to stream their Codex/Cursor/OpenClaw session to AgentOS for realtime visibility. Creates a task automatically, sets AI Working status, and streams all output to the execution console.
+description: Sync execution logs and output to AgentOS. Use when the user wants to stream their Claude Code/Codex/Cursor/OpenClaw session to AgentOS for realtime visibility. Creates a task automatically, sets AI Working status, and streams all output to the execution console.
 ---
 
 # AgentOS Sync
@@ -22,38 +22,69 @@ If `#agentos` is attached in the prompt, **initialize AgentOS sync first**, then
 Read from environment variables. Do not ask the user for task ID, project ID, or token in chat—use env vars.
 
 1. **AGENTOS_ACCESS_TOKEN** (required): AgentOS JWT. User gets it from AgentOS → Settings → API Keys → Copy access token.
-2. **AGENTOS_PROJECT_ID** (required): Project UUID where tasks are created. User gets it from AgentOS (Settings → External Sync → Copy project ID, or from the app URL when viewing a project).
+2. **AGENTOS_PROJECT_ID** (required): Project UUID where tasks are created. User gets it from AgentOS → Settings → API Keys → Copy project ID.
 3. **AGENTOS_API_URL** (optional): Default `http://localhost:4000`.
 
 If env vars are not set, tell the user once: "To sync with AgentOS, set AGENTOS_ACCESS_TOKEN and AGENTOS_PROJECT_ID in your environment. See the agentos-sync README for setup."
 
 ## Workflow
 
-1. **Create task and register session**: Call `POST /runs/external` with `{ projectId: "<AGENTOS_PROJECT_ID>", source: "codex" }` (or "claude"/"openclaw"). Optionally include `title` for the task (default: "External sync from {source}"). Use `Authorization: Bearer <AGENTOS_ACCESS_TOKEN>`.
-2. **Store runId and taskId**: Save the returned `runId`; use it for all subsequent calls. The task is created with "AI Working" status.
-3. **Emit chunks**: As you execute (run commands, read files, log progress), call `POST /runs/:runId/chunks` with a `StreamChunk` in the body. See [references/api.md](references/api.md) for chunk types.
-4. **Signal done**: When execution completes, call `POST /runs/:runId/done` with optional `{ result, output, chunks }`. This moves the task to **Review** status.
+### Option A — Script-based (recommended for Claude Code, Codex, Cursor)
+
+Use the bundled script which manages session state automatically:
+
+```bash
+# 1. Start — creates task in AgentOS, saves runId to temp file
+node scripts/sync-to-agentos.js start "Task title from user prompt"
+
+# 2. Stream chunks throughout execution
+node scripts/sync-to-agentos.js chunk '{"type":"section","title":"Planning","content":"Analyzing the request"}'
+node scripts/sync-to-agentos.js chunk '{"type":"command","command":"npm test","output":"All passed","status":"done"}'
+node scripts/sync-to-agentos.js chunk '{"type":"write_file","path":"src/app.ts","content":"// updated"}'
+node scripts/sync-to-agentos.js chunk '{"type":"read_file","path":"src/index.ts","summary":"Entry point"}'
+node scripts/sync-to-agentos.js chunk '{"type":"agent_log","level":"info","message":"Step complete"}'
+
+# 3. Done — moves task to Review
+node scripts/sync-to-agentos.js done "Brief summary of what was accomplished"
+```
+
+### Option B — Direct API calls
+
+1. **Create task and register session**: `POST /runs/external`
+   - Body: `{ "projectId": "<AGENTOS_PROJECT_ID>", "source": "claude", "title": "task title" }`
+   - Auth: `Authorization: Bearer <AGENTOS_ACCESS_TOKEN>`
+   - Response: `{ "runId": "uuid", "taskId": "uuid" }`
+   - Task is created with "AI Working" status
+
+2. **Stream chunks**: `POST /runs/:runId/chunks`
+   - Body: `{ "chunk": { ...StreamChunk } }`
+
+3. **Signal done**: `POST /runs/:runId/done`
+   - Body: `{ "result": "summary" }`
+   - Moves task to **Review** status
+
+For full API details, see [references/api.md](references/api.md).
+
+## Chunk Type Reference
+
+Map your actions to these chunk types:
+
+| Action | Chunk type | Fields |
+|--------|------------|--------|
+| Section / phase header | `section` | `title`, `content?` |
+| Terminal command | `command` | `command`, `output?`, `status?` |
+| Reading a file | `read_file` | `path`, `summary?`, `tokens?` |
+| Writing / editing a file | `write_file` | `path`, `content?` |
+| Log message | `agent_log` | `level`, `message`, `payload?` |
+| Plain text | `text` | `content` |
+| Need user input | `user_prompt` | `message` |
 
 ## Status Rules
 
-- While the agent is still working, the task must remain **AI Working**.
-- When the chat finishes, call `/runs/:runId/done` to move the task to **Review**.
+- Task stays **AI Working** while the agent is executing — keep emitting chunks
+- Call `done` only when all work is complete — task then moves to **Review**
+- The user can then approve or reject the task in AgentOS
 
-Do not ask the user for task ID or project ID. Create the task automatically via the API.
+## Script
 
-## Chunk Types
-
-Map your actions to these types:
-
-- `agent_log` – General log line: `{ type: "agent_log", level: "info"|"warn"|"error", message, payload? }`
-- `section` – Grouped output: `{ type: "section", title, content? }`
-- `command` – Terminal command + output: `{ type: "command", command, output?, status?: "running"|"done"|"error" }`
-- `read_file` – File read: `{ type: "read_file", path, summary?, tokens? }`
-- `text` – Plain text: `{ type: "text", content }`
-- `user_prompt` – When you need user input: `{ type: "user_prompt", message }`
-
-## API Base URL
-
-Default: `http://localhost:4000`. Override with `AGENTOS_API_URL` if the user's AgentOS instance is elsewhere.
-
-For full API details, see [references/api.md](references/api.md).
+See `scripts/sync-to-agentos.js`. The script maintains session state in a temp file (keyed to your parent PID) so `start` is called once per session and all subsequent `chunk`/`done` calls reuse the same run.

@@ -113,6 +113,19 @@
     &:hover {
       background: var(--bg-secondary);
     }
+
+    &--clickable {
+      cursor: pointer;
+
+      &:hover {
+        background: var(--surface);
+      }
+
+      &:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 1px;
+      }
+    }
   }
 
   &__agentAvatar {

@@ -479,6 +479,7 @@ export default function AppBoardPage() {
         runs={runs}
         tasks={tasks}
         agents={agents}
+        onTaskClick={openTask}
       />
       <div className="appBoard__main">
         <TopBar

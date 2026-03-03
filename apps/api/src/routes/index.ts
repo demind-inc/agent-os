@@ -589,6 +589,11 @@ export async function registerRoutes(app: FastifyInstance) {
       summary: z.string().optional(),
       tokens: z.number().optional(),
     }),
+    z.object({
+      type: z.literal('write_file'),
+      path: z.string(),
+      content: z.string().optional(),
+    }),
     z.object({ type: z.literal('user_prompt'), message: z.string() }),
     z.object({
       type: z.literal('agent_log'),
