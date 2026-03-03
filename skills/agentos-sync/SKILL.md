@@ -32,7 +32,7 @@ If env vars are not set, tell the user once: "To sync with AgentOS, set AGENTOS_
 1. **Create task and register session**: Call `POST /runs/external` with `{ projectId: "<AGENTOS_PROJECT_ID>", source: "codex" }` (or "claude"/"openclaw"). Optionally include `title` for the task (default: "External sync from {source}"). Use `Authorization: Bearer <AGENTOS_ACCESS_TOKEN>`.
 2. **Store runId and taskId**: Save the returned `runId`; use it for all subsequent calls. The task is created with "AI Working" status.
 3. **Emit chunks**: As you execute (run commands, read files, log progress), call `POST /runs/:runId/chunks` with a `StreamChunk` in the body. See [references/api.md](references/api.md) for chunk types.
-4. **Signal done**: When execution completes, call `POST /runs/:runId/done` with optional `{ result, chunks }`. This moves the task to **Review** status.
+4. **Signal done**: When execution completes, call `POST /runs/:runId/done` with optional `{ result, output, chunks }`. This moves the task to **Review** status.
 
 ## Status Rules
 

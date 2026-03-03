@@ -337,19 +337,18 @@ export function TaskDetailPanel({
             )}
           </div>
           {task.status !== "backlog" && (
-          <div className="taskDetailPanel__section">
-            <h4>Agent Log</h4>
-            <div
-              ref={consoleScrollRef}
-              className="taskDetailPanel__chunkList column"
-            >
+            <div className="taskDetailPanel__section">
+              <h4>Agent Log</h4>
+              <div
+                ref={consoleScrollRef}
+                className="taskDetailPanel__chunkList column"
+              >
                 {(() => {
                   const executionLogArtifact = artifacts.find(
                     (a) => a.type === "execution_log"
                   );
-                  const storedChunks = (executionLogArtifact?.metadata?.chunks as
-                    | StreamChunk[]
-                    | undefined);
+                  const storedChunks = executionLogArtifact?.metadata
+                    ?.chunks as StreamChunk[] | undefined;
                   const storedContent =
                     (executionLogArtifact?.metadata?.content as string) ?? "";
 
@@ -357,11 +356,11 @@ export function TaskDetailPanel({
                   const entriesToRender: StreamChunkEntry[] = isRunning
                     ? streamedChunks
                     : Array.isArray(storedChunks) && storedChunks.length > 0
-                      ? storedChunks.map((chunk) => ({
-                          chunk,
-                          timestamp: "",
-                        }))
-                      : [];
+                    ? storedChunks.map((chunk) => ({
+                        chunk,
+                        timestamp: "",
+                      }))
+                    : [];
 
                   const hasLegacyContent =
                     !isRunning &&
@@ -381,7 +380,10 @@ export function TaskDetailPanel({
                   }
 
                   if (entriesToRender.length > 0) {
-                    const renderChunk = (chunk: StreamChunk, partIdx: number) => {
+                    const renderChunk = (
+                      chunk: StreamChunk,
+                      partIdx: number
+                    ) => {
                       if (chunk.type === "text") {
                         return (
                           <div
@@ -400,7 +402,11 @@ export function TaskDetailPanel({
                         return (
                           <div
                             key={partIdx}
-                            className={`taskDetailPanel__consoleEntry taskDetailPanel__consoleCommand ${isStreaming ? "taskDetailPanel__consoleCommand--streaming" : ""}`}
+                            className={`taskDetailPanel__consoleEntry taskDetailPanel__consoleCommand ${
+                              isStreaming
+                                ? "taskDetailPanel__consoleCommand--streaming"
+                                : ""
+                            }`}
                           >
                             <div className="taskDetailPanel__consoleCommandBlock">
                               <div className="taskDetailPanel__consoleCommandLabel">
@@ -526,8 +532,11 @@ export function TaskDetailPanel({
                               ? g.section.content ?? g.section.title
                               : "";
                           const bodyText = g.body
-                            .filter((c): c is Extract<StreamChunk, { type: "text" }> =>
-                              c.type === "text"
+                            .filter(
+                              (
+                                c
+                              ): c is Extract<StreamChunk, { type: "text" }> =>
+                                c.type === "text"
                             )
                             .map((c) => c.content)
                             .join(" ");
@@ -644,7 +653,10 @@ export function TaskDetailPanel({
                   }
 
                   return logs.map((log) => {
-                    const payload = log.payload as Record<string, unknown> | null;
+                    const payload = log.payload as Record<
+                      string,
+                      unknown
+                    > | null;
                     const timestamp = log.created_at
                       ? new Date(log.created_at).toLocaleTimeString(undefined, {
                           hour: "numeric",
@@ -692,7 +704,9 @@ export function TaskDetailPanel({
                               {(payload.result != null ||
                                 payload.summary != null) && (
                                 <div className="taskDetailPanel__consoleActionResult">
-                                  {String(payload.result ?? payload.summary ?? "")}
+                                  {String(
+                                    payload.result ?? payload.summary ?? ""
+                                  )}
                                 </div>
                               )}
                             </div>
@@ -729,7 +743,11 @@ export function TaskDetailPanel({
                           </div>
                           <div className="taskDetailPanel__chunkBody">
                             <div
-                              className={`taskDetailPanel__consoleEntry taskDetailPanel__consoleCommand ${isStreaming ? "taskDetailPanel__consoleCommand--streaming" : ""}`}
+                              className={`taskDetailPanel__consoleEntry taskDetailPanel__consoleCommand ${
+                                isStreaming
+                                  ? "taskDetailPanel__consoleCommand--streaming"
+                                  : ""
+                              }`}
                             >
                               <div className="taskDetailPanel__consoleCommandBlock">
                                 <div className="taskDetailPanel__consoleCommandLabel">
@@ -764,10 +782,7 @@ export function TaskDetailPanel({
                     }
 
                     return (
-                      <div
-                        key={log.id}
-                        className="taskDetailPanel__chunkCard"
-                      >
+                      <div key={log.id} className="taskDetailPanel__chunkCard">
                         <div className="taskDetailPanel__chunkHeader">
                           <div
                             className="taskDetailPanel__chunkAvatar"
@@ -805,11 +820,16 @@ export function TaskDetailPanel({
                       Agent needs your input
                     </div>
                     {(promptLog ||
-                      streamedChunks.find((c) => c.chunk.type === "user_prompt")) && (
+                      streamedChunks.find(
+                        (c) => c.chunk.type === "user_prompt"
+                      )) && (
                       <div className="taskDetailPanel__consolePromptCard">
                         <p className="taskDetailPanel__consolePromptMessage">
-                          {(streamedChunks.find((c) => c.chunk.type === "user_prompt")
-                            ?.chunk as { message?: string } | undefined)?.message ??
+                          {(
+                            streamedChunks.find(
+                              (c) => c.chunk.type === "user_prompt"
+                            )?.chunk as { message?: string } | undefined
+                          )?.message ??
                             (promptLog?.payload as { message?: string })
                               ?.message ??
                             "The agent needs your input."}
@@ -843,8 +863,8 @@ export function TaskDetailPanel({
                     </form>
                   </div>
                 )}
+              </div>
             </div>
-          </div>
           )}
           <div className="taskDetailPanel__section">
             <h4>Artifacts ({artifacts.length})</h4>
@@ -953,14 +973,6 @@ export function TaskDetailPanel({
             </div>
             <div className="taskDetailPanel__artifactModalBody">
               <dl className="taskDetailPanel__artifactDetailList">
-                <div className="taskDetailPanel__artifactDetailRow">
-                  <dt>Type</dt>
-                  <dd>{selectedArtifact.type}</dd>
-                </div>
-                <div className="taskDetailPanel__artifactDetailRow">
-                  <dt>Title</dt>
-                  <dd>{selectedArtifact.title}</dd>
-                </div>
                 {selectedArtifact.url && (
                   <div className="taskDetailPanel__artifactDetailRow">
                     <dt>URL</dt>
@@ -991,8 +1003,8 @@ export function TaskDetailPanel({
                     typeof selectedArtifact.metadata.preview === "string"
                       ? selectedArtifact.metadata.preview
                       : typeof selectedArtifact.metadata.content === "string"
-                        ? selectedArtifact.metadata.content
-                        : "";
+                      ? selectedArtifact.metadata.content
+                      : "";
                   if (previewText.length === 0) return null;
                   return (
                     <div className="taskDetailPanel__artifactPreview">

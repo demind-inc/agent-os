@@ -73,9 +73,12 @@ Signal run completion. Persists execution log and updates task status.
 ```json
 {
   "result": "optional summary",
+  "output": "optional full output (e.g., diff, file previews)",
   "chunks": [ /* optional full chunk array for persistence */ ]
 }
 ```
+
+If `chunks` is omitted, AgentOS will persist the buffered stream chunks it already received for the run.
 
 **Response:**
 ```json
