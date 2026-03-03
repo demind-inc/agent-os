@@ -21,7 +21,7 @@ Codex reads skills from `$CODEX_HOME/skills` (default `~/.codex/skills`), `.agen
 In Codex chat, use the skill installer:
 
 ```
-$skill-installer install the agentos-sync skill from demind/agentos, path skills/agentos-sync
+$skill-installer install the agentos-sync skill from demind-inc/agent-os, path skills/agentos-sync
 ```
 
 Or if this repo is cloned locally:
@@ -34,7 +34,7 @@ cp -r /path/to/agentos/skills/agentos-sync ~/.codex/skills/
 **Option 2: Install from GitHub**
 
 ```
-$skill-installer install from demind/agentos, path skills/agentos-sync
+$skill-installer install from demind-inc/agent-os, path skills/agentos-sync
 ```
 
 Restart Codex after installing.
@@ -64,7 +64,7 @@ cp -r /path/to/agentos/skills/agentos-sync ~/.cursor/skills/
 1. Open Cursor Settings (Cmd+Shift+J or Ctrl+Shift+J)
 2. Go to Rules
 3. Click Add Rule → Remote Rule (Github)
-4. Enter the GitHub repo URL and path: `https://github.com/demind/agentos/tree/main/skills/agentos-sync`
+4. Enter the GitHub repo URL and path: `https://github.com/demind-inc/agent-os/tree/main/skills/agentos-sync`
 
 Restart Cursor to pick up the new skill.
 
@@ -123,7 +123,7 @@ Register the skill in `openclaw.json`:
 If OpenClaw supports ClawHub and this skill is published there, you can also use:
 
 ```
-/skills install @demind/agentos-sync
+/skills install @demind-inc/agentos-sync
 ```
 
 ---
@@ -169,10 +169,10 @@ The access token is your AgentOS session JWT. You need it to authenticate API ca
 
 Set these environment variables so the agent can call the AgentOS API:
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `AGENTOS_ACCESS_TOKEN` | Your AgentOS JWT | Required |
-| `AGENTOS_API_URL` | AgentOS API base URL | `http://localhost:4000` |
+| Variable               | Description          | Default                 |
+| ---------------------- | -------------------- | ----------------------- |
+| `AGENTOS_ACCESS_TOKEN` | Your AgentOS JWT     | Required                |
+| `AGENTOS_API_URL`      | AgentOS API base URL | `http://localhost:4000` |
 
 ### Codex
 
