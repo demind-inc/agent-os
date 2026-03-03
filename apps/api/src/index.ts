@@ -23,3 +23,18 @@ await registerRoutes(app);
 
 // const port = Number(process.env.API_PORT || 4000);
 // await app.listen({ port, host: "0.0.0.0" });
+
+const ready = app.ready();
+
+export default async function handler(req: any, res: any) {
+  await ready;
+
+  // (Optional) quick preflight short-circuit
+  if (req.method === "OPTIONS") {
+    res.statusCode = 204;
+    res.end();
+    return;
+  }
+
+  app.server.emit("request", req, res);
+}
