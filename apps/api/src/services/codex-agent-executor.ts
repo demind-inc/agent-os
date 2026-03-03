@@ -3,7 +3,12 @@
  * Mirrors agent-executor for Claude; uses OpenAI API with same streaming chunk interface.
  */
 
-import OpenAI from "openai";
+import { OpenAI } from "openai";
+import type {
+  ChatCompletionMessageParam,
+  ChatCompletionTool,
+  ChatCompletionMessageToolCall,
+} from "openai/resources/chat";
 import type { StreamChunk } from "../types/stream-chunk.js";
 import { executeGitHubTool, type GitHubToolName } from "./github-tools.js";
 
@@ -63,8 +68,8 @@ function slugifyForBranch(text: string): string {
 
 function getOpenAITools(
   githubAccessToken: string | null
-): OpenAI.Chat.Completions.ChatCompletionTool[] {
-  const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
+): ChatCompletionTool[] {
+  const tools: ChatCompletionTool[] = [
     {
       type: "function",
       function: {
@@ -297,8 +302,8 @@ function emitTextAsChunks(
 
 function convertToOpenAIMessages(
   messages: Array<Record<string, unknown>>
-): OpenAI.Chat.Completions.ChatCompletionMessageParam[] {
-  const out: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
+): ChatCompletionMessageParam[] {
+  const out: ChatCompletionMessageParam[] = [];
 
   for (const m of messages) {
     const role = m.role as string;
@@ -454,11 +459,10 @@ Rules:
     console.log("[Codex] Round", round, "messages:", messages.length);
     // }
 
-    const openAIMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] =
-      [
-        { role: "system", content: systemPrompt },
-        ...convertToOpenAIMessages(messages),
-      ];
+    const openAIMessages: ChatCompletionMessageParam[] = [
+      { role: "system", content: systemPrompt },
+      ...convertToOpenAIMessages(messages),
+    ];
 
     const response = await client.chat.completions.create({
       model,
@@ -476,7 +480,7 @@ Rules:
 
     const msg = choice.message;
     const content = msg.content ?? "";
-    const toolCalls = msg.tool_calls ?? [];
+    const toolCalls = (msg.tool_calls ?? []) as ChatCompletionMessageToolCall[];
 
     // if (process.env.NODE_ENV === "development") {
     console.log("[Codex] Response:", {
@@ -484,7 +488,7 @@ Rules:
       contentLength: (content as string).length,
       toolCallsCount: toolCalls.length,
       finish_reason: choice.finish_reason,
-      toolNames: toolCalls.map((tc) => {
+      toolNames: toolCalls.map((tc: ChatCompletionMessageToolCall) => {
         const fn =
           "function" in tc
             ? (tc as { function?: { name?: string } }).function
