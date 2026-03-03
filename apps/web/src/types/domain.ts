@@ -23,6 +23,8 @@ export interface AgentRun {
   agent_id: string;
   status: RunStatus;
   created_at: string;
+  /** Source of run: null for app-triggered, or codex/claude/openclaw for external agents. */
+  source?: string | null;
 }
 
 export type AgentBackend = "claude" | "codex";

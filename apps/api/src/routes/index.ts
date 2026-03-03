@@ -3,6 +3,8 @@ import { z } from "zod";
 import { adminSupabase, assertWorkspaceMember, detectSkillsFromDescription, getUserFromBearer } from "../plugins/supabase.js";
 import { enqueueRun } from "../services/runner.js";
 import {
+  broadcastRunStreamChunk,
+  broadcastRunStreamDone,
   registerRunStream,
   unregisterRunStream,
   type RunStreamSender,
@@ -412,6 +414,59 @@ export async function registerRoutes(app: FastifyInstance) {
     return run;
   });
 
+  app.post('/runs/external', async (request, reply) => {
+    const user = (request as any).user;
+    const body = z
+      .object({
+        taskId: z.string().uuid(),
+        source: z.enum(['codex', 'claude', 'openclaw']),
+        agentId: z.string().uuid().optional(),
+      })
+      .parse(request.body);
+
+    const { data: task } = await adminSupabase
+      .from('tasks')
+      .select('id, project_id, projects(workspace_id)')
+      .eq('id', body.taskId)
+      .single();
+    if (!task) return reply.status(404).send({ error: 'Task not found' });
+    const workspaceId = (task as any).projects?.workspace_id as string;
+    await assertWorkspaceMember(user.id, workspaceId);
+
+    let agentId = body.agentId;
+    if (!agentId) {
+      const { data: firstAgent } = await adminSupabase
+        .from('agents')
+        .select('id')
+        .eq('workspace_id', workspaceId)
+        .order('created_at')
+        .limit(1)
+        .maybeSingle();
+      if (!firstAgent) return reply.status(400).send({ error: 'No agents configured' });
+      agentId = firstAgent.id;
+    }
+
+    const { data: run, error } = await adminSupabase
+      .from('agent_runs')
+      .insert({
+        task_id: body.taskId,
+        agent_id: agentId!,
+        status: 'running',
+        source: body.source,
+        triggered_by_user_id: user.id,
+        started_at: new Date().toISOString(),
+        input_snapshot: { source: body.source },
+      })
+      .select('id, task_id, status')
+      .single();
+
+    if (error || !run) return reply.status(400).send({ error: error?.message || 'Failed to create run' });
+
+    await adminSupabase.from('tasks').update({ status: 'ai_working' }).eq('id', body.taskId);
+
+    return { runId: run.id, taskId: run.task_id, status: run.status };
+  });
+
   app.post('/runs/:runId/input', async (request, reply) => {
     const user = (request as any).user;
     const params = request.params as { runId: string };
@@ -451,6 +506,131 @@ export async function registerRoutes(app: FastifyInstance) {
       .eq('id', params.runId);
 
     await enqueueRun(params.runId);
+    return { ok: true };
+  });
+
+  const streamChunkSchema = z.discriminatedUnion('type', [
+    z.object({ type: z.literal('text'), content: z.string() }),
+    z.object({ type: z.literal('section'), title: z.string(), content: z.string().optional() }),
+    z.object({
+      type: z.literal('command'),
+      command: z.string(),
+      output: z.string().optional(),
+      status: z.enum(['running', 'done', 'error']).optional(),
+    }),
+    z.object({
+      type: z.literal('read_file'),
+      path: z.string(),
+      summary: z.string().optional(),
+      tokens: z.number().optional(),
+    }),
+    z.object({ type: z.literal('user_prompt'), message: z.string() }),
+    z.object({
+      type: z.literal('agent_log'),
+      level: z.string(),
+      message: z.string(),
+      payload: z.record(z.unknown()).optional(),
+    }),
+  ]);
+
+  app.post('/runs/:runId/chunks', async (request, reply) => {
+    const user = (request as any).user;
+    const params = request.params as { runId: string };
+    const body = z.object({ chunk: streamChunkSchema }).parse(request.body);
+
+    const { data: run } = await adminSupabase
+      .from('agent_runs')
+      .select('id, task_id')
+      .eq('id', params.runId)
+      .single();
+    if (!run) return reply.status(404).send({ error: 'Run not found' });
+
+    const { data: task } = await adminSupabase
+      .from('tasks')
+      .select('project_id, projects(workspace_id)')
+      .eq('id', run.task_id)
+      .single();
+    if (!task) return reply.status(404).send({ error: 'Task not found' });
+    const workspaceId = (task as any).projects?.workspace_id as string;
+    await assertWorkspaceMember(user.id, workspaceId);
+
+    broadcastRunStreamChunk(params.runId, 'chunk', JSON.stringify(body.chunk));
+    return reply.status(204).send();
+  });
+
+  app.post('/runs/:runId/done', async (request, reply) => {
+    const user = (request as any).user;
+    const params = request.params as { runId: string };
+    const body = z
+      .object({
+        result: z.string().optional(),
+        chunks: z.array(streamChunkSchema).optional(),
+      })
+      .parse(request.body ?? {});
+
+    const { data: run } = await adminSupabase
+      .from('agent_runs')
+      .select('id, task_id, status')
+      .eq('id', params.runId)
+      .single();
+    if (!run) return reply.status(404).send({ error: 'Run not found' });
+    if ((run as any).status === 'completed' || (run as any).status === 'failed') {
+      return reply.status(400).send({ error: 'Run already finished' });
+    }
+
+    const { data: task } = await adminSupabase
+      .from('tasks')
+      .select('project_id, projects(workspace_id)')
+      .eq('id', run.task_id)
+      .single();
+    if (!task) return reply.status(404).send({ error: 'Task not found' });
+    const workspaceId = (task as any).projects?.workspace_id as string;
+    await assertWorkspaceMember(user.id, workspaceId);
+
+    await adminSupabase
+      .from('agent_runs')
+      .update({
+        status: 'completed',
+        finished_at: new Date().toISOString(),
+        output_snapshot: { result: body.result ?? 'ready_for_review', messages: [] },
+      })
+      .eq('id', params.runId);
+
+    const { data: existing } = await adminSupabase
+      .from('task_artifacts')
+      .select('id')
+      .eq('task_id', run.task_id)
+      .eq('run_id', params.runId)
+      .eq('type', 'execution_log')
+      .maybeSingle();
+
+    const metadata: Record<string, unknown> = {
+      source: 'external',
+      content: body.result ?? '',
+      preview: body.result ?? '',
+    };
+    if (Array.isArray(body.chunks) && body.chunks.length > 0) {
+      metadata.chunks = body.chunks;
+    }
+
+    if (existing) {
+      await adminSupabase
+        .from('task_artifacts')
+        .update({ metadata })
+        .eq('id', existing.id);
+    } else {
+      await adminSupabase.from('task_artifacts').insert({
+        task_id: run.task_id,
+        run_id: params.runId,
+        type: 'execution_log',
+        title: 'Execution console',
+        url: null,
+        metadata,
+      });
+    }
+
+    await adminSupabase.from('tasks').update({ status: 'in_review' }).eq('id', run.task_id);
+    broadcastRunStreamDone(params.runId);
     return { ok: true };
   });
 

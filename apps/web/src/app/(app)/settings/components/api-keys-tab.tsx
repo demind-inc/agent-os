@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { apiFetch } from "@/lib/api/client";
+import { createClient } from "@/lib/supabase/client";
 
 export type ProviderApiKeysState = {
   anthropic?: { configured: boolean };
@@ -16,6 +17,7 @@ type ApiKeysTabProps = {
 export function ApiKeysTab({ loading: externalLoading, onLoad }: ApiKeysTabProps) {
   const [loading, setLoading] = useState(true);
   const [configured, setConfigured] = useState<ProviderApiKeysState>({});
+  const [tokenCopied, setTokenCopied] = useState(false);
   const [anthropicKey, setAnthropicKey] = useState("");
   const [openaiKey, setOpenaiKey] = useState("");
   const [savingProvider, setSavingProvider] = useState<"anthropic" | "openai" | null>(null);
@@ -162,6 +164,30 @@ export function ApiKeysTab({ loading: externalLoading, onLoad }: ApiKeysTabProps
         {configured.openai?.configured && (
           <p className="settingsPage__fieldStatus settingsPage__fieldStatus--ok">OpenAI key connected</p>
         )}
+      </div>
+      <div className="settingsPage__divider" />
+      <div className="settingsPage__cardSection">
+        <h3 className="settingsPage__cardTitle">External Sync (Codex, Cursor, Claude, OpenClaw)</h3>
+        <p className="settingsPage__fieldHint">
+          Use this token to sync execution logs from external agents. Set <code>AGENTOS_ACCESS_TOKEN</code> in your
+          environment or paste when the agent prompts. See the agentos-sync skill README for setup.
+        </p>
+        <button
+          type="button"
+          className="settingsPage__btn settingsPage__btn--secondary"
+          onClick={async () => {
+            const supabase = createClient();
+            const { data: { session } } = await supabase.auth.getSession();
+            const token = session?.access_token ?? (typeof window !== "undefined" ? localStorage.getItem("agentos_access_token") : null);
+            if (token) {
+              await navigator.clipboard.writeText(token);
+              setTokenCopied(true);
+              setTimeout(() => setTokenCopied(false), 2000);
+            }
+          }}
+        >
+          {tokenCopied ? "Copied!" : "Copy access token"}
+        </button>
       </div>
     </div>
   );
