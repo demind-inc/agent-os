@@ -13,10 +13,6 @@ Stream execution logs and output from this session to AgentOS. A task is created
 - User wants their work visible in the AgentOS execution console
 - The **first user prompt** includes `#agentos` (auto-enable sync for that session)
 
-## Priority Rule
-
-If `#agentos` is attached in the prompt, **initialize AgentOS sync first**, then proceed with the actual task.
-
 ## Setup (one-time)
 
 Read from environment variables. Do not ask the user for task ID, project ID, or token in chat—use env vars.
