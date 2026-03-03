@@ -169,21 +169,27 @@ export function ApiKeysTab({ loading: externalLoading, onLoad }: ApiKeysTabProps
       <div className="settingsPage__cardSection">
         <h3 className="settingsPage__cardTitle">External Sync (Codex, Cursor, Claude, OpenClaw)</h3>
         <p className="settingsPage__fieldHint">
-          Use this token to sync execution logs from external agents. Set <code>AGENTOS_ACCESS_TOKEN</code> in your
-          environment or paste when the agent prompts. See the agentos-sync skill README for setup.
+          Use this token to sync execution logs from external agents. When the agent prompts, paste the token in chat.
+          See the agentos-sync skill README for setup.
         </p>
         <button
           type="button"
           className="settingsPage__btn settingsPage__btn--secondary"
           onClick={async () => {
             const supabase = createClient();
-            const { data: { session } } = await supabase.auth.getSession();
-            const token = session?.access_token ?? (typeof window !== "undefined" ? localStorage.getItem("agentos_access_token") : null);
-            if (token) {
-              await navigator.clipboard.writeText(token);
-              setTokenCopied(true);
-              setTimeout(() => setTokenCopied(false), 2000);
+            const { data: { session }, error } = await supabase.auth.refreshSession();
+            const token = session?.access_token;
+            if (error || !token) {
+              setMessage({ type: "err", text: "Session expired. Please log in again." });
+              setTimeout(() => setMessage(null), 4000);
+              return;
             }
+            if (typeof window !== "undefined") {
+              localStorage.setItem("agentos_access_token", token);
+            }
+            await navigator.clipboard.writeText(token);
+            setTokenCopied(true);
+            setTimeout(() => setTokenCopied(false), 2000);
           }}
         >
           {tokenCopied ? "Copied!" : "Copy access token"}

@@ -5,8 +5,10 @@ Stream execution logs and output from Codex, Cursor, Claude, or OpenClaw to Agen
 ## Prerequisites
 
 - An AgentOS instance (default: `http://localhost:4000`)
-- An AgentOS access token (Settings → API Keys → Copy access token)
+- An AgentOS access token (Settings → API Keys → Copy access token — use a fresh token; expired tokens are not copied)
 - A task ID in AgentOS to link the session to
+
+**Token in chat:** When you invoke the skill, the agent will ask you to paste the access token in chat. Get a fresh token from Settings → API Keys → Copy access token, then paste it when prompted.
 
 ---
 
@@ -139,7 +141,7 @@ The access token is your AgentOS session JWT. You need it to authenticate API ca
 1. Log in to AgentOS.
 2. Go to **Settings** → **API Keys**.
 3. Scroll to **External Sync (Codex, Cursor, Claude, OpenClaw)**.
-4. Click **Copy access token**.
+4. Click **Copy access token**. The button refreshes your session first and only copies a valid, non-expired token. If your session is expired, log in again.
 
 **Option 2: From the browser**
 
@@ -165,22 +167,31 @@ The access token is your AgentOS session JWT. You need it to authenticate API ca
 
 ---
 
-## Configuration by Platform
+## Connecting the Skill: Token in Chat
 
-Set these environment variables so the agent can call the AgentOS API:
+**On all platforms (Codex, Cursor, Claude, OpenClaw), the agent will ask you to paste the access token in chat when you invoke the skill.** This is the recommended flow—no env vars required.
+
+1. Get a fresh token: AgentOS → Settings → API Keys → Copy access token.
+2. Invoke the skill (e.g. `/agentos-sync` or ask to sync with AgentOS).
+3. When the agent asks for the token, paste it in chat.
+4. Provide the task ID when asked.
+
+Avoid pasting the token in shared or logged channels. The token expires with your session; get a new one if you see 401 errors.
+
+### Optional: Environment variables
+
+Set these env vars if you prefer not to paste in chat. The agent will still prompt if missing or if the API returns 401:
 
 | Variable               | Description          | Default                 |
 | ---------------------- | -------------------- | ----------------------- |
-| `AGENTOS_ACCESS_TOKEN` | Your AgentOS JWT     | Required                |
+| `AGENTOS_ACCESS_TOKEN` | Your AgentOS JWT      | Optional (paste in chat) |
 | `AGENTOS_API_URL`      | AgentOS API base URL | `http://localhost:4000` |
 
-### Codex
-
-Add to your shell profile (`~/.zshrc`, `~/.bashrc`) or Codex config:
+**Codex / Cursor / Claude:** Add to shell profile or `.env`:
 
 ```bash
 export AGENTOS_ACCESS_TOKEN="your-token-here"
-export AGENTOS_API_URL="http://localhost:4000"   # optional
+export AGENTOS_API_URL="http://localhost:4000"
 ```
 
 Or in `~/.codex/config.toml` (if Codex supports env passthrough), ensure the process inherits these env vars. Codex typically inherits from the terminal where it was launched.
@@ -232,10 +243,6 @@ openclaw
 ```
 
 Or use OpenClaw’s secrets (if available): `/secrets set AGENTOS_ACCESS_TOKEN your-token-here`
-
-### Providing the token when prompted
-
-If env vars are not set, the agent can ask you for the token when you invoke the skill. You can paste it when prompted. Avoid pasting it into shared or logged channels.
 
 ---
 

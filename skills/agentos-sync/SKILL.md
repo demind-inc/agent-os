@@ -15,9 +15,11 @@ Stream execution logs and output from this session to AgentOS so the user can vi
 
 ## Setup
 
-1. **Access token:** User needs an AgentOS JWT. Read from `AGENTOS_ACCESS_TOKEN` env var, or prompt the user to provide it. See [README.md](README.md#getting-your-credentials) for how to obtain the token (browser DevTools → Local Storage → `agentos_access_token`).
-2. **API URL:** Default `http://localhost:4000`. Override with `AGENTOS_API_URL` if the instance is elsewhere.
-3. **Task ID:** User provides the `taskId` (UUID of the task in AgentOS to link this run to).
+**When the user invokes this skill, always ask them to paste the AgentOS access token in chat.** Do not assume env vars are set.
+
+1. **Access token:** Ask the user: "Please paste your AgentOS access token. You can get it from AgentOS → Settings → API Keys → Copy access token." Use the token they paste in chat. Do not use a token from env vars if the user provides one in chat—prefer the chat value. If the token fails (401), ask them to get a fresh token (Settings → Copy access token refreshes the session).
+2. **API URL:** Default `http://localhost:4000`. Override with `AGENTOS_API_URL` if the user says their instance is elsewhere.
+3. **Task ID:** Ask the user for the `taskId` (UUID of the task in AgentOS to link this run to).
 
 ## Workflow
 
