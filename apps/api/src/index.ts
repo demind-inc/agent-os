@@ -14,11 +14,6 @@ await app.register(cors, {
   allowedHeaders: ["authorization", "content-type", "x-client-info", "apikey"],
 });
 
-// Preflight safety net (some proxies drop OPTIONS)
-app.options("*", async (_request, reply) => {
-  reply.status(204).send();
-});
-
 // Root health ping
 app.get("/", async () => ({ ok: true, service: "agentos-api" }));
 
