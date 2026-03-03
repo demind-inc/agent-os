@@ -21,5 +21,5 @@ await app.register(websocket);
 
 await registerRoutes(app);
 
-const port = Number(process.env.API_PORT || 4000);
-await app.listen({ port, host: "0.0.0.0" });
+// const port = Number(process.env.API_PORT || 4000);
+// await app.listen({ port, host: "0.0.0.0" });
