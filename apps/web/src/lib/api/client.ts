@@ -1,4 +1,5 @@
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
+import type { StreamChunk } from "@/types/stream-chunk";
 
 async function getAccessToken() {
   if (typeof window === "undefined") return null;
@@ -55,12 +56,12 @@ function wsBase(): string {
 }
 
 /**
- * Subscribe to run execution stream via WebSocket. Call onChunk for each text chunk, onDone when stream ends.
+ * Subscribe to run execution stream via WebSocket. Call onChunk for each structured chunk, onDone when stream ends.
  * Connects once per runId; no persistence during stream; server stores one row when done.
  */
 export function apiStreamRun(
   runId: string,
-  callbacks: { onChunk: (text: string) => void; onDone: () => void }
+  callbacks: { onChunk: (chunk: StreamChunk) => void; onDone: () => void }
 ): () => void {
   let closed = false;
   let ws: WebSocket | null = null;
@@ -87,7 +88,10 @@ export function apiStreamRun(
       try {
         const msg = JSON.parse(e.data as string) as { event?: string; data?: string };
         if (msg.event === "chunk" && typeof msg.data === "string") {
-          callbacks.onChunk(msg.data);
+          const chunk = JSON.parse(msg.data) as StreamChunk;
+          if (chunk && typeof chunk === "object" && "type" in chunk) {
+            callbacks.onChunk(chunk);
+          }
         }
         if (msg.event === "done") {
           callbacks.onDone();

@@ -211,7 +211,9 @@ export async function registerRoutes(app: FastifyInstance) {
 
     const userIds = [...new Set(rows.map((r: { user_id: string }) => r.user_id))];
     const { data: profiles } = await adminSupabase.from('profiles').select('id, email, full_name, avatar_url').in('id', userIds);
-    const profileMap = new Map((profiles || []).map((p: { id: string }) => [p.id, p]));
+    const profileMap = new Map(
+      (profiles || []).map((p: { id: string; email?: string; full_name?: string; avatar_url?: string }) => [p.id, p])
+    );
 
     const members = rows.map((row: { id: string; user_id: string; role: string }) => {
       const p = profileMap.get(row.user_id);
@@ -410,6 +412,48 @@ export async function registerRoutes(app: FastifyInstance) {
     return run;
   });
 
+  app.post('/runs/:runId/input', async (request, reply) => {
+    const user = (request as any).user;
+    const params = request.params as { runId: string };
+    const body = z.object({
+      type: z.literal('text'),
+      value: z.string().optional(),
+    }).parse(request.body);
+
+    const { data: run } = await adminSupabase
+      .from('agent_runs')
+      .select('id, task_id, status, input_snapshot')
+      .eq('id', params.runId)
+      .single();
+
+    if (!run) return reply.status(404).send({ error: 'Run not found' });
+    if (run.status !== 'awaiting_input') {
+      return reply.status(400).send({ error: 'Run is not awaiting input' });
+    }
+
+    const { data: task } = await adminSupabase
+      .from('tasks')
+      .select('id, project_id, metadata, projects(workspace_id)')
+      .eq('id', run.task_id)
+      .single();
+
+    if (!task) return reply.status(404).send({ error: 'Task not found' });
+    const workspaceId = (task as any).projects?.workspace_id as string | undefined;
+    if (!workspaceId) return reply.status(400).send({ error: 'Task has no workspace' });
+    await assertWorkspaceMember(user.id, workspaceId);
+
+    await adminSupabase
+      .from('agent_runs')
+      .update({
+        status: 'queued',
+        input_snapshot: { ...((run as any).input_snapshot ?? {}), userInput: { type: body.type, value: body.value } },
+      })
+      .eq('id', params.runId);
+
+    await enqueueRun(params.runId);
+    return { ok: true };
+  });
+
   app.get('/runs/:runId/stream', { websocket: true }, (socket, request) => {
     const user = (request as any).user;
     const params = request.params as { runId: string };
@@ -471,7 +515,7 @@ export async function registerRoutes(app: FastifyInstance) {
     if (!task) return reply.status(404).send({ error: 'Task not found' });
     await assertWorkspaceMember(user.id, (task as any).projects.workspace_id);
 
-    const { data, error } = await adminSupabase.from('task_logs').select('*').eq('task_id', params.taskId).order('created_at', { ascending: false }).limit(100);
+    const { data, error } = await adminSupabase.from('task_logs').select('*').eq('task_id', params.taskId).order('created_at', { ascending: true }).limit(100);
     if (error) return reply.status(400).send({ error: error.message });
     return { logs: data || [] };
   });
@@ -602,10 +646,14 @@ export async function registerRoutes(app: FastifyInstance) {
 
   app.post('/integrations/oauth/start', async (request, reply) => {
     const user = (request as any).user;
-    const body = z.object({ provider: z.string().min(1), workspaceId: z.string().uuid() }).parse(request.body);
+    const body = z.object({
+      provider: z.string().min(1),
+      workspaceId: z.string().uuid(),
+    }).parse(request.body);
     await assertWorkspaceMember(user.id, body.workspaceId);
 
     const oauthState = crypto.randomUUID();
+    const stateParam = `${oauthState}::${body.provider}`;
     const { data, error } = await adminSupabase
       .from('integrations')
       .upsert({ workspace_id: body.workspaceId, provider: body.provider, oauth_state: oauthState, status: 'awaiting_oauth' }, { onConflict: 'workspace_id,provider' })
@@ -614,21 +662,84 @@ export async function registerRoutes(app: FastifyInstance) {
 
     if (error || !data) return reply.status(400).send({ error: error?.message || 'Failed to start oauth' });
 
+    const appBaseUrl = (process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/$/, '');
+    const callbackUri = `${appBaseUrl}/integrations/oauth/callback`;
+    const redirectUrl = `/integrations/oauth/callback`;
+
+    let providerAuthUrl: string | null = null;
+    if (body.provider === 'github') {
+      const clientId = process.env.GITHUB_CLIENT_ID;
+      if (clientId) {
+        providerAuthUrl = `https://github.com/login/oauth/authorize?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(callbackUri)}&scope=repo&state=${encodeURIComponent(stateParam)}`;
+      }
+    }
+
     return {
       integration: data,
-      redirectUrl: `/integrations/oauth/callback?provider=${encodeURIComponent(body.provider)}&state=${oauthState}`
+      redirectUrl,
+      providerAuthUrl,
     };
   });
 
-  app.get('/integrations/oauth/callback', async (request) => {
-    const query = request.query as { provider?: string; state?: string; code?: string };
-    return {
-      ok: true,
-      provider: query.provider,
-      state: query.state,
-      code: query.code || null,
-      note: 'OAuth callback placeholder. Exchange code with provider in production.'
-    };
+  app.post('/integrations/oauth/callback', async (request, reply) => {
+    const user = (request as any).user;
+    const body = z.object({
+      provider: z.string().min(1),
+      code: z.string().min(1),
+      state: z.string().min(1),
+    }).parse(request.body);
+
+    const parts = body.state.split(':');
+    const oauthState = parts[0] ?? body.state;
+    const runId = parts[1] || null;
+
+    const { data: integration } = await adminSupabase
+      .from('integrations')
+      .select('id, workspace_id, oauth_state')
+      .eq('provider', body.provider)
+      .eq('oauth_state', oauthState)
+      .maybeSingle();
+
+    if (!integration || integration.oauth_state !== oauthState) {
+      return reply.status(400).send({ error: 'Invalid OAuth state' });
+    }
+    await assertWorkspaceMember(user.id, integration.workspace_id);
+
+    if (body.provider === 'github') {
+      const clientId = process.env.GITHUB_CLIENT_ID;
+      const clientSecret = process.env.GITHUB_CLIENT_SECRET;
+      const appBaseUrl = (process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/$/, '');
+      const redirectUri = `${appBaseUrl}/integrations/oauth/callback`;
+
+      if (clientId && clientSecret) {
+        const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
+          method: 'POST',
+          headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            client_id: clientId,
+            client_secret: clientSecret,
+            code: body.code,
+            redirect_uri: redirectUri,
+          }),
+        });
+        const tokenData = (await tokenRes.json()) as { access_token?: string; error?: string };
+        if (tokenData.error) {
+          return reply.status(400).send({ error: tokenData.error });
+        }
+        if (tokenData.access_token) {
+          await adminSupabase
+            .from('integrations')
+            .update({
+              access_token: tokenData.access_token,
+              status: 'connected',
+              oauth_state: null,
+            })
+            .eq('id', integration.id);
+        }
+      }
+    }
+
+    return { ok: true, runId: runId || null };
   });
 
   app.post('/integrations/:integrationId/sync', async (request, reply) => {

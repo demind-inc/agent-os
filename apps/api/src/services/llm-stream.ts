@@ -33,9 +33,13 @@ export async function streamTaskWithClaude(
   onStreamChunk?: StreamChunkCallback
 ): Promise<{ fullText: string }> {
   if (!apiKey || !apiKey.trim()) {
-    await onLog("warn", "No Anthropic API key configured. Add your key in Settings → API Keys.", {
-      source: "runner",
-    });
+    await onLog(
+      "warn",
+      "No Anthropic API key configured. Add your key in Settings → API Keys.",
+      {
+        source: "runner",
+      }
+    );
     return { fullText: "" };
   }
 
@@ -49,7 +53,9 @@ Rules:
 - For any commands you describe or run, wrap them in a fenced code block with \`\`\`bash or \`\`\` (command on lines after the opener, then \`\`\` to close). If there is output, add it after the command block or in a second block.
 - Describe what you're doing concisely. Use 2–5 sections for a typical task.`;
 
-  const userContent = `Task: ${task.title}\n\n${task.description || "No additional description."}\n\nWork through this task. Start with a ## section title for your first step, then describe and use \`\`\` blocks for any commands.`;
+  const userContent = `Task: ${task.title}\n\n${
+    task.description || "No additional description."
+  }\n\nWork through this task. Start with a ## section title for your first step, then describe and use \`\`\` blocks for any commands.`;
 
   let fullText = "";
 
@@ -57,7 +63,7 @@ Rules:
 
   const stream = client.messages.stream({
     model,
-    max_tokens: 1024,
+    max_tokens: 20000,
     system: systemPrompt,
     messages: [{ role: "user", content: userContent }],
   });

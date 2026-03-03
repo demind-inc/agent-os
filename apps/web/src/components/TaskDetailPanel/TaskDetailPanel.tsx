@@ -3,7 +3,12 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import type { Task } from "@/types/domain";
-import { apiFetch, apiStreamRun } from "@/lib/api/client";
+import type { StreamChunk } from "@/types/stream-chunk";
+import { apiFetch } from "@/lib/api/client";
+import {
+  useRunStream,
+  type StreamChunkEntry,
+} from "@/components/RunStreamProvider/RunStreamProvider";
 import { parseConsoleSections } from "./parseConsoleSections";
 import "./TaskDetailPanel.scss";
 
@@ -54,23 +59,39 @@ type Artifact = {
   metadata?: Record<string, unknown>;
 };
 
+type AwaitingInputRun = {
+  id: string;
+  task_id: string;
+  status: string;
+};
+
 type TaskDetailPanelProps = {
   task: Task;
   logs: TaskLog[];
   artifacts: Artifact[];
   onRun: (taskId: string) => void;
   isRunning?: boolean;
-  /** When set and task is running, execution console subscribes to this run's stream. */
-  activeRunId?: string | null;
-  /** Called when the run stream ends so parent can refetch artifacts. */
-  onStreamDone?: () => void;
+  /** Run awaiting user input (OAuth, chat response). Shows interactive prompt in console. */
+  awaitingInputRun?: AwaitingInputRun | null;
+  workspaceId?: string;
+  /** Called when user submits input (OAuth completed, chat message) so parent can refetch. */
+  onInputSubmitted?: () => void;
   onClose: () => void;
   onReview: (taskId: string, action: "approve" | "reject") => void;
   onDelete: (taskId: string) => void | Promise<void>;
   onTaskUpdate: (updatedTask: Task) => void;
   assignedAgentBackend?: "claude" | "codex" | null;
   providerApiKeysConfigured?: { anthropic?: boolean; openai?: boolean };
+  /** Agent display name for chunk headers (e.g. "Writer Agent"). */
+  assignedAgentName?: string;
 };
+
+/** Payload for interactive prompts from agent (user question). */
+function isUserPromptPayload(
+  p: Record<string, unknown> | null
+): p is { kind?: string; message?: string } {
+  return p != null && p.kind === "user_prompt";
+}
 
 export function TaskDetailPanel({
   task,
@@ -78,14 +99,16 @@ export function TaskDetailPanel({
   artifacts,
   onRun,
   isRunning = false,
-  activeRunId = null,
-  onStreamDone,
+  awaitingInputRun = null,
+  workspaceId = "",
+  onInputSubmitted,
   onClose,
   onReview,
   onDelete,
   onTaskUpdate,
   assignedAgentBackend = null,
   providerApiKeysConfigured = {},
+  assignedAgentName = "Agent",
 }: TaskDetailPanelProps) {
   const hasApiKeyForAgent =
     !assignedAgentBackend ||
@@ -114,39 +137,22 @@ export function TaskDetailPanel({
     null
   );
   const [previewCopied, setPreviewCopied] = useState(false);
-  const [streamedText, setStreamedText] = useState("");
+  const [userInputValue, setUserInputValue] = useState("");
+  const [isSubmittingInput, setIsSubmittingInput] = useState(false);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const descriptionInputRef = useRef<HTMLTextAreaElement>(null);
-  const onStreamDoneRef = useRef(onStreamDone);
-  const subscribedRunIdRef = useRef<string | null>(null);
+  const consoleScrollRef = useRef<HTMLDivElement>(null);
 
-  onStreamDoneRef.current = onStreamDone;
+  const { streamedChunks } = useRunStream();
 
-  // Single WebSocket connection per run; only when isRunning and activeRunId are set
+  // Auto-scroll console to bottom when streaming so new content is visible
   useEffect(() => {
-    if (!isRunning || !activeRunId) {
-      if (!isRunning) setStreamedText("");
-      subscribedRunIdRef.current = null;
-      return;
-    }
-    if (subscribedRunIdRef.current === activeRunId) return;
-    subscribedRunIdRef.current = activeRunId;
-    setStreamedText("");
-
-    const close = apiStreamRun(activeRunId, {
-      onChunk: (text) => {
-        setStreamedText((prev) => prev + text);
-      },
-      onDone: () => {
-        subscribedRunIdRef.current = null;
-        onStreamDoneRef.current?.();
-      },
+    if (!isRunning || streamedChunks.length === 0) return;
+    consoleScrollRef.current?.scrollTo({
+      top: consoleScrollRef.current.scrollHeight,
+      behavior: "smooth",
     });
-    return () => {
-      close();
-      subscribedRunIdRef.current = null;
-    };
-  }, [isRunning, activeRunId]);
+  }, [isRunning, streamedChunks]);
 
   async function handleDelete() {
     if (isDeleting) return;
@@ -207,6 +213,29 @@ export function TaskDetailPanel({
       onTaskUpdate(updated);
     } catch {
       setEditDescriptionValue(task.description ?? "");
+    }
+  }
+
+  const promptLog = logs.find((l) =>
+    isUserPromptPayload(l.payload as Record<string, unknown> | null)
+  );
+
+  async function handleSubmitUserInput(e: React.FormEvent) {
+    e.preventDefault();
+    const trimmed = userInputValue.trim();
+    if (!trimmed || !awaitingInputRun || isSubmittingInput) return;
+    setIsSubmittingInput(true);
+    try {
+      await apiFetch(`/runs/${awaitingInputRun.id}/input`, {
+        method: "POST",
+        body: JSON.stringify({ type: "text", value: trimmed }),
+      });
+      setUserInputValue("");
+      onInputSubmitted?.();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSubmittingInput(false);
     }
   }
 
@@ -309,55 +338,287 @@ export function TaskDetailPanel({
           </div>
           {task.status !== "backlog" && (
           <div className="taskDetailPanel__section">
-            <h4>Execution Console</h4>
-            <div className="taskDetailPanel__consoleTerminal">
-              <div className="taskDetailPanel__consoleTerminalHeader">
-                &gt;_ Execution console
-              </div>
-              <div className="taskDetailPanel__console column">
+            <h4>Agent Log</h4>
+            <div
+              ref={consoleScrollRef}
+              className="taskDetailPanel__chunkList column"
+            >
                 {(() => {
                   const executionLogArtifact = artifacts.find(
                     (a) => a.type === "execution_log"
                   );
+                  const storedChunks = (executionLogArtifact?.metadata?.chunks as
+                    | StreamChunk[]
+                    | undefined);
                   const storedContent =
                     (executionLogArtifact?.metadata?.content as string) ?? "";
-                  const contentToShow =
-                    isRunning && streamedText
-                      ? streamedText
-                      : storedContent;
 
-                  if (!contentToShow.trim() && logs.length === 0) {
+                  // During streaming: use streamedChunks (with timestamps). When done: use stored chunks or legacy content
+                  const entriesToRender: StreamChunkEntry[] = isRunning
+                    ? streamedChunks
+                    : Array.isArray(storedChunks) && storedChunks.length > 0
+                      ? storedChunks.map((chunk) => ({
+                          chunk,
+                          timestamp: "",
+                        }))
+                      : [];
+
+                  const hasLegacyContent =
+                    !isRunning &&
+                    entriesToRender.length === 0 &&
+                    storedContent.trim();
+
+                  if (
+                    entriesToRender.length === 0 &&
+                    !hasLegacyContent &&
+                    (isRunning || logs.length === 0)
+                  ) {
                     return (
                       <p className="taskDetailPanel__consoleEmpty">
-                        No logs yet.
+                        {isRunning ? "Streaming…" : "No logs yet."}
                       </p>
                     );
                   }
 
-                  if (contentToShow.trim()) {
-                    const sections = parseConsoleSections(contentToShow);
+                  if (entriesToRender.length > 0) {
+                    const renderChunk = (chunk: StreamChunk, partIdx: number) => {
+                      if (chunk.type === "text") {
+                        return (
+                          <div
+                            key={partIdx}
+                            className="taskDetailPanel__consoleTextMessage"
+                          >
+                            {chunk.content}
+                          </div>
+                        );
+                      }
+                      if (chunk.type === "command") {
+                        const isStreaming = chunk.status === "running";
+                        const showOutput =
+                          isStreaming ||
+                          (chunk.output != null && chunk.output !== "");
+                        return (
+                          <div
+                            key={partIdx}
+                            className={`taskDetailPanel__consoleEntry taskDetailPanel__consoleCommand ${isStreaming ? "taskDetailPanel__consoleCommand--streaming" : ""}`}
+                          >
+                            <div className="taskDetailPanel__consoleCommandBlock">
+                              <div className="taskDetailPanel__consoleCommandLabel">
+                                &gt;_ Run command
+                              </div>
+                              <div className="taskDetailPanel__consoleCommandTerminal">
+                                <code className="taskDetailPanel__consoleCommandLine">
+                                  $ {chunk.command}
+                                </code>
+                                {showOutput && (
+                                  <>
+                                    <div className="taskDetailPanel__consoleCommandOutputLabel">
+                                      # Output
+                                    </div>
+                                    <pre className="taskDetailPanel__consoleCommandOutput">
+                                      {chunk.output ?? ""}
+                                      {isStreaming && (
+                                        <span
+                                          className="taskDetailPanel__consoleCommandCursor"
+                                          aria-hidden
+                                        />
+                                      )}
+                                    </pre>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+                      if (chunk.type === "read_file") {
+                        return (
+                          <div
+                            key={partIdx}
+                            className="taskDetailPanel__consoleEntry taskDetailPanel__consoleAction"
+                          >
+                            <div className="taskDetailPanel__consoleActionCard">
+                              <div className="taskDetailPanel__consoleActionTitle">
+                                Read file
+                              </div>
+                              <div className="taskDetailPanel__consoleActionPath">
+                                {chunk.path}
+                              </div>
+                              {(chunk.summary != null ||
+                                chunk.tokens != null) && (
+                                <div className="taskDetailPanel__consoleActionResult">
+                                  {chunk.tokens != null
+                                    ? `✓ ${chunk.tokens.toLocaleString()} tokens loaded`
+                                    : chunk.summary ?? ""}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      }
+                      if (chunk.type === "agent_log") {
+                        return (
+                          <div
+                            key={partIdx}
+                            className="taskDetailPanel__consoleAgentLog"
+                            data-level={chunk.level}
+                          >
+                            {chunk.message}
+                            {chunk.payload &&
+                              Object.keys(chunk.payload).length > 0 && (
+                                <span className="taskDetailPanel__consoleAgentLogPayload">
+                                  {" "}
+                                  {JSON.stringify(chunk.payload)}
+                                </span>
+                              )}
+                          </div>
+                        );
+                      }
+                      if (chunk.type === "user_prompt") {
+                        return (
+                          <div
+                            key={partIdx}
+                            className="taskDetailPanel__consoleUserPrompt"
+                          >
+                            <div className="taskDetailPanel__consoleUserPromptLabel">
+                              Agent requested input
+                            </div>
+                            <p className="taskDetailPanel__consoleUserPromptMessage">
+                              {chunk.message}
+                            </p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    };
+
+                    const grouped: {
+                      section: StreamChunk;
+                      body: StreamChunk[];
+                      timestamp: string;
+                    }[] = [];
+                    let current: {
+                      section: StreamChunk;
+                      body: StreamChunk[];
+                      timestamp: string;
+                    } | null = null;
+                    for (const { chunk, timestamp } of entriesToRender) {
+                      if (chunk.type === "section") {
+                        current = { section: chunk, body: [], timestamp };
+                        grouped.push(current);
+                      } else if (current) {
+                        current.body.push(chunk);
+                      } else {
+                        grouped.push({
+                          section: { type: "section", title: "Output" },
+                          body: [chunk],
+                          timestamp,
+                        });
+                        current = grouped[grouped.length - 1]!;
+                      }
+                    }
+
                     return (
                       <>
-                        {sections.map((section, idx) => (
-                          <div
-                            key={idx}
-                            className="taskDetailPanel__consoleSection"
-                          >
-                            <div className="taskDetailPanel__consoleSectionTitle">
-                              {section.title}
+                        {grouped.map((g, gIdx) => {
+                          const description =
+                            g.section.type === "section"
+                              ? g.section.content ?? g.section.title
+                              : "";
+                          const bodyText = g.body
+                            .filter((c): c is Extract<StreamChunk, { type: "text" }> =>
+                              c.type === "text"
+                            )
+                            .map((c) => c.content)
+                            .join(" ");
+                          const sectionTitle =
+                            g.section.type === "section"
+                              ? g.section.title
+                              : "Output";
+                          const displayDescription =
+                            description && bodyText
+                              ? `${description} ${bodyText}`.trim()
+                              : description || bodyText || sectionTitle;
+
+                          return (
+                            <div
+                              key={gIdx}
+                              className="taskDetailPanel__chunkCard"
+                            >
+                              <div className="taskDetailPanel__chunkHeader">
+                                <div
+                                  className="taskDetailPanel__chunkAvatar"
+                                  aria-hidden
+                                />
+                                <div className="taskDetailPanel__chunkMeta">
+                                  <span className="taskDetailPanel__chunkTitle">
+                                    {assignedAgentName}
+                                  </span>
+                                  {g.timestamp && (
+                                    <span className="taskDetailPanel__chunkTimestamp">
+                                      {g.timestamp}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              {displayDescription && (
+                                <p className="taskDetailPanel__chunkDescription">
+                                  {displayDescription}
+                                </p>
+                              )}
+                              <div className="taskDetailPanel__chunkBody">
+                                {g.body
+                                  .filter((c) => c.type !== "text")
+                                  .map((c, i) => renderChunk(c, i))}
+                              </div>
                             </div>
-                            <div className="taskDetailPanel__consoleSectionBody">
-                              {section.parts.map((part, partIdx) =>
-                                typeof part === "string" ? (
-                                  part.trim() ? (
-                                    <div
-                                      key={partIdx}
-                                      className="taskDetailPanel__consoleTextMessage"
-                                    >
-                                      {part.trim()}
-                                    </div>
-                                  ) : null
-                                ) : (
+                          );
+                        })}
+                      </>
+                    );
+                  }
+
+                  if (hasLegacyContent) {
+                    const sections = parseConsoleSections(storedContent);
+                    return (
+                      <>
+                        {sections.map((section, idx) => {
+                          const textParts = section.parts.filter(
+                            (p): p is string => typeof p === "string"
+                          );
+                          const codeParts = section.parts.filter(
+                            (p): p is { type: "code"; content: string } =>
+                              typeof p !== "string"
+                          );
+                          const description = [
+                            section.title,
+                            ...textParts.map((t) => t.trim()).filter(Boolean),
+                          ]
+                            .join(" ")
+                            .trim();
+                          return (
+                            <div
+                              key={idx}
+                              className="taskDetailPanel__chunkCard"
+                            >
+                              <div className="taskDetailPanel__chunkHeader">
+                                <div
+                                  className="taskDetailPanel__chunkAvatar"
+                                  aria-hidden
+                                />
+                                <div className="taskDetailPanel__chunkMeta">
+                                  <span className="taskDetailPanel__chunkTitle">
+                                    {assignedAgentName}
+                                  </span>
+                                </div>
+                              </div>
+                              {description && (
+                                <p className="taskDetailPanel__chunkDescription">
+                                  {description}
+                                </p>
+                              )}
+                              <div className="taskDetailPanel__chunkBody">
+                                {codeParts.map((part, partIdx) => (
                                   <div
                                     key={partIdx}
                                     className="taskDetailPanel__consoleEntry taskDetailPanel__consoleCommand"
@@ -369,29 +630,27 @@ export function TaskDetailPanel({
                                       <div className="taskDetailPanel__consoleCommandTerminal">
                                         <pre className="taskDetailPanel__consoleCommandOutput">
                                           {part.content}
-                                          {isRunning &&
-                                            idx === sections.length - 1 &&
-                                            partIdx === section.parts.length - 1 && (
-                                              <span
-                                                className="taskDetailPanel__consoleCommandCursor"
-                                                aria-hidden
-                                              />
-                                            )}
                                         </pre>
                                       </div>
                                     </div>
                                   </div>
-                                )
-                              )}
+                                ))}
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </>
                     );
                   }
 
                   return logs.map((log) => {
                     const payload = log.payload as Record<string, unknown> | null;
+                    const timestamp = log.created_at
+                      ? new Date(log.created_at).toLocaleTimeString(undefined, {
+                          hour: "numeric",
+                          minute: "2-digit",
+                        })
+                      : "";
 
                     if (isActionPayload(payload)) {
                       const toolLabel =
@@ -402,23 +661,41 @@ export function TaskDetailPanel({
                       return (
                         <div
                           key={log.id}
-                          className="taskDetailPanel__consoleEntry taskDetailPanel__consoleAction"
+                          className="taskDetailPanel__chunkCard"
                         >
-                          <div className="taskDetailPanel__consoleActionCard">
-                            <div className="taskDetailPanel__consoleActionTitle">
-                              {toolLabel}
+                          <div className="taskDetailPanel__chunkHeader">
+                            <div
+                              className="taskDetailPanel__chunkAvatar"
+                              aria-hidden
+                            />
+                            <div className="taskDetailPanel__chunkMeta">
+                              <span className="taskDetailPanel__chunkTitle">
+                                {assignedAgentName}
+                              </span>
+                              {timestamp && (
+                                <span className="taskDetailPanel__chunkTimestamp">
+                                  {timestamp}
+                                </span>
+                              )}
                             </div>
-                            {payload.path != null && (
-                              <div className="taskDetailPanel__consoleActionPath">
-                                {String(payload.path)}
+                          </div>
+                          <div className="taskDetailPanel__chunkBody">
+                            <div className="taskDetailPanel__consoleActionCard">
+                              <div className="taskDetailPanel__consoleActionTitle">
+                                {toolLabel}
                               </div>
-                            )}
-                            {(payload.result != null ||
-                              payload.summary != null) && (
-                              <div className="taskDetailPanel__consoleActionResult">
-                                {String(payload.result ?? payload.summary ?? "")}
-                              </div>
-                            )}
+                              {payload.path != null && (
+                                <div className="taskDetailPanel__consoleActionPath">
+                                  {String(payload.path)}
+                                </div>
+                              )}
+                              {(payload.result != null ||
+                                payload.summary != null) && (
+                                <div className="taskDetailPanel__consoleActionResult">
+                                  {String(payload.result ?? payload.summary ?? "")}
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
                       );
@@ -432,32 +709,54 @@ export function TaskDetailPanel({
                       return (
                         <div
                           key={log.id}
-                          className={`taskDetailPanel__consoleEntry taskDetailPanel__consoleCommand ${isStreaming ? "taskDetailPanel__consoleCommand--streaming" : ""}`}
+                          className="taskDetailPanel__chunkCard"
                         >
-                          <div className="taskDetailPanel__consoleCommandBlock">
-                            <div className="taskDetailPanel__consoleCommandLabel">
-                              &gt;_ Run command
-                            </div>
-                            <div className="taskDetailPanel__consoleCommandTerminal">
-                              <code className="taskDetailPanel__consoleCommandLine">
-                                $ {payload.command ?? log.message}
-                              </code>
-                              {showOutput && (
-                                <>
-                                  <div className="taskDetailPanel__consoleCommandOutputLabel">
-                                    # Output
-                                  </div>
-                                  <pre className="taskDetailPanel__consoleCommandOutput">
-                                    {output}
-                                    {isStreaming && (
-                                      <span
-                                        className="taskDetailPanel__consoleCommandCursor"
-                                        aria-hidden
-                                      />
-                                    )}
-                                  </pre>
-                                </>
+                          <div className="taskDetailPanel__chunkHeader">
+                            <div
+                              className="taskDetailPanel__chunkAvatar"
+                              aria-hidden
+                            />
+                            <div className="taskDetailPanel__chunkMeta">
+                              <span className="taskDetailPanel__chunkTitle">
+                                {assignedAgentName}
+                              </span>
+                              {timestamp && (
+                                <span className="taskDetailPanel__chunkTimestamp">
+                                  {timestamp}
+                                </span>
                               )}
+                            </div>
+                          </div>
+                          <div className="taskDetailPanel__chunkBody">
+                            <div
+                              className={`taskDetailPanel__consoleEntry taskDetailPanel__consoleCommand ${isStreaming ? "taskDetailPanel__consoleCommand--streaming" : ""}`}
+                            >
+                              <div className="taskDetailPanel__consoleCommandBlock">
+                                <div className="taskDetailPanel__consoleCommandLabel">
+                                  &gt;_ Run command
+                                </div>
+                                <div className="taskDetailPanel__consoleCommandTerminal">
+                                  <code className="taskDetailPanel__consoleCommandLine">
+                                    $ {payload.command ?? log.message}
+                                  </code>
+                                  {showOutput && (
+                                    <>
+                                      <div className="taskDetailPanel__consoleCommandOutputLabel">
+                                        # Output
+                                      </div>
+                                      <pre className="taskDetailPanel__consoleCommandOutput">
+                                        {output}
+                                        {isStreaming && (
+                                          <span
+                                            className="taskDetailPanel__consoleCommandCursor"
+                                            aria-hidden
+                                          />
+                                        )}
+                                      </pre>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -467,11 +766,27 @@ export function TaskDetailPanel({
                     return (
                       <div
                         key={log.id}
-                        className="taskDetailPanel__consoleEntry taskDetailPanel__consoleText"
+                        className="taskDetailPanel__chunkCard"
                       >
-                        <div className="taskDetailPanel__consoleTextMessage">
-                          {log.message}
+                        <div className="taskDetailPanel__chunkHeader">
+                          <div
+                            className="taskDetailPanel__chunkAvatar"
+                            aria-hidden
+                          />
+                          <div className="taskDetailPanel__chunkMeta">
+                            <span className="taskDetailPanel__chunkTitle">
+                              {assignedAgentName}
+                            </span>
+                            {timestamp && (
+                              <span className="taskDetailPanel__chunkTimestamp">
+                                {timestamp}
+                              </span>
+                            )}
+                          </div>
                         </div>
+                        <p className="taskDetailPanel__chunkDescription">
+                          {log.message}
+                        </p>
                         {payload &&
                           Object.keys(payload).length > 0 &&
                           payload.kind !== "action" &&
@@ -484,7 +799,50 @@ export function TaskDetailPanel({
                     );
                   });
                 })()}
-              </div>
+                {awaitingInputRun && (
+                  <div className="taskDetailPanel__consolePrompt">
+                    <div className="taskDetailPanel__consolePromptLabel">
+                      Agent needs your input
+                    </div>
+                    {(promptLog ||
+                      streamedChunks.find((c) => c.chunk.type === "user_prompt")) && (
+                      <div className="taskDetailPanel__consolePromptCard">
+                        <p className="taskDetailPanel__consolePromptMessage">
+                          {(streamedChunks.find((c) => c.chunk.type === "user_prompt")
+                            ?.chunk as { message?: string } | undefined)?.message ??
+                            (promptLog?.payload as { message?: string })
+                              ?.message ??
+                            "The agent needs your input."}
+                        </p>
+                      </div>
+                    )}
+                    <form
+                      className="taskDetailPanel__consolePromptForm"
+                      onSubmit={handleSubmitUserInput}
+                    >
+                      <input
+                        type="text"
+                        className="taskDetailPanel__consolePromptInput"
+                        placeholder="Type your response…"
+                        value={userInputValue}
+                        onChange={(e) => setUserInputValue(e.target.value)}
+                        disabled={isSubmittingInput || !awaitingInputRun}
+                        aria-label="User response"
+                      />
+                      <button
+                        type="submit"
+                        className="taskDetailPanel__btn taskDetailPanel__btnPrimary taskDetailPanel__consolePromptSubmit"
+                        disabled={
+                          !userInputValue.trim() ||
+                          isSubmittingInput ||
+                          !awaitingInputRun
+                        }
+                      >
+                        {isSubmittingInput ? "Sending…" : "Send"}
+                      </button>
+                    </form>
+                  </div>
+                )}
             </div>
           </div>
           )}

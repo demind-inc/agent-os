@@ -1,16 +1,44 @@
 "use client";
 
+import { useState } from "react";
+import { apiFetch } from "@/lib/api/client";
 import type { Integration } from "../types";
 
 type IntegrationsTabProps = {
   integrations: Integration[];
   integrationsLoading?: boolean;
+  workspaceId: string;
 };
 
 export function IntegrationsTab({
   integrations,
   integrationsLoading,
+  workspaceId,
 }: IntegrationsTabProps) {
+  const [connectingProvider, setConnectingProvider] = useState<string | null>(null);
+
+  async function handleConnect(provider: string) {
+    if (!workspaceId) return;
+    setConnectingProvider(provider);
+    try {
+      const { providerAuthUrl } = await apiFetch<{
+        redirectUrl: string;
+        providerAuthUrl?: string | null;
+      }>("/integrations/oauth/start", {
+        method: "POST",
+        body: JSON.stringify({ provider, workspaceId }),
+      });
+      if (providerAuthUrl) {
+        window.location.href = providerAuthUrl;
+      } else {
+        setConnectingProvider(null);
+      }
+    } catch (err) {
+      console.error(err);
+      setConnectingProvider(null);
+    }
+  }
+
   if (integrationsLoading) {
     return (
       <div className="settingsPage__loadingWrap">
@@ -60,8 +88,14 @@ export function IntegrationsTab({
                   ? "settingsPage__btn--secondary"
                   : "settingsPage__btn--accent"
               }`}
+              onClick={() => handleConnect(integration.provider)}
+              disabled={connectingProvider != null}
             >
-              {integration.connected ? "Configure" : "Connect"}
+              {connectingProvider === integration.provider
+                ? "Connecting…"
+                : integration.connected
+                  ? "Configure"
+                  : "Connect"}
             </button>
           </div>
         </div>

@@ -11,6 +11,7 @@ import { BoardView } from "@/components/BoardView/BoardView";
 import { NewTaskPanel } from "@/components/NewTaskPanel/NewTaskPanel";
 import { ListView } from "@/components/ListView/ListView";
 import { TaskDetailPanel } from "@/components/TaskDetailPanel/TaskDetailPanel";
+import { RunStreamProvider } from "@/components/RunStreamProvider/RunStreamProvider";
 import { BottomInputBar } from "@/components/BottomInputBar/BottomInputBar";
 import "./app-board.scss";
 
@@ -60,6 +61,8 @@ export default function AppBoardPage() {
   const [pendingStreamTaskId, setPendingStreamTaskId] = useState<string | null>(
     null
   );
+  /** True when TaskDetailPanel has an active WebSocket stream; skip logs/artifacts poll. */
+  const [isStreaming, setIsStreaming] = useState(false);
 
   const projectId = useMemo(
     () =>
@@ -171,9 +174,10 @@ export default function AppBoardPage() {
     };
   }, [projectId]);
 
-  // Stream task_logs for the active task so command output updates live
+  // Subscribe to task_logs only when NOT streaming. During streaming, execution log
+  // comes from WebSocket; logs are stored in DB only when the run finishes.
   useEffect(() => {
-    if (!activeTaskId) return;
+    if (!activeTaskId || isStreaming) return;
 
     const supabase = createClient();
     const channel = supabase
@@ -187,7 +191,7 @@ export default function AppBoardPage() {
           filter: `task_id=eq.${activeTaskId}`,
         },
         (payload: { new: TaskLog }) => {
-          setLogs((prev) => [payload.new, ...prev]);
+          setLogs((prev) => [...prev, payload.new]);
         }
       )
       .on(
@@ -209,7 +213,7 @@ export default function AppBoardPage() {
     return () => {
       supabase.removeChannel(channel).catch(console.error);
     };
-  }, [activeTaskId]);
+  }, [activeTaskId, isStreaming]);
 
   const filteredTasks = tasks.filter((task) => {
     if (!search.trim()) return true;
@@ -227,6 +231,13 @@ export default function AppBoardPage() {
           r.task_id === activeTask.id &&
           (r.status === "queued" || r.status === "running")
       )
+    : null;
+  /** Run awaiting user input (e.g. OAuth, chat response) — shown in execution console. */
+  const awaitingInputRun = activeTask
+    ? runs.find(
+        (r) =>
+          r.task_id === activeTask.id && r.status === "awaiting_input"
+      ) ?? null
     : null;
 
   const isActiveTaskRunning = Boolean(
@@ -368,17 +379,35 @@ export default function AppBoardPage() {
     return () => clearTimeout(t);
   }, [snackbarMessage]);
 
+  // Poll logs/artifacts only when task is ai_working and NOT streaming or awaiting input.
+  // During streaming, the WebSocket provides live content; onStreamDone refetches when done.
+  // When awaiting input, we already have the content; onInputSubmitted refetches after.
   useEffect(() => {
     if (!activeTaskId || activeTask?.status !== "ai_working") return;
+    if (isStreaming || isActiveTaskRunning || awaitingInputRun) return;
 
     const interval = setInterval(() => {
       loadTaskDetails(activeTaskId).catch(console.error);
     }, 2500);
 
     return () => clearInterval(interval);
-  }, [activeTask?.status, activeTaskId, loadTaskDetails]);
+  }, [activeTask?.status, activeTaskId, isStreaming, isActiveTaskRunning, awaitingInputRun, loadTaskDetails]);
 
   return (
+    <RunStreamProvider
+      activeRunId={activeRunId}
+      isRunning={isActiveTaskRunning}
+      taskId={activeTaskId}
+      onStreamDone={() =>
+        activeTaskId &&
+        loadTaskDetails(activeTaskId).then(() => {
+          setPendingStreamRunId(null);
+          setPendingStreamTaskId(null);
+        })
+      }
+      onStreamConnect={() => setIsStreaming(true)}
+      onStreamDisconnect={() => setIsStreaming(false)}
+    >
     <div className="appBoard">
       <AppSidebar
         projectTitle={projectName}
@@ -446,20 +475,30 @@ export default function AppBoardPage() {
           artifacts={artifacts}
           onRun={runTask}
           isRunning={isActiveTaskRunning}
-          activeRunId={activeRunId}
-          onStreamDone={() => activeTaskId && loadTaskDetails(activeTaskId)}
-          onClose={() => setActiveTaskId(null)}
+          awaitingInputRun={awaitingInputRun}
+          workspaceId={workspaceId}
+          onClose={() => {
+            setActiveTaskId(null);
+            setIsStreaming(false);
+          }}
           onReview={review}
           onDelete={async (taskId) => {
             await deleteTask(taskId);
             setActiveTaskId(null);
           }}
           onTaskUpdate={handleTaskUpdate}
+          onInputSubmitted={() => activeTaskId && loadTaskDetails(activeTaskId)}
           assignedAgentBackend={
             activeTask.assigned_agent_id
               ? agents.find((a) => a.id === activeTask.assigned_agent_id)
                   ?.backend ?? null
               : null
+          }
+          assignedAgentName={
+            activeTask.assigned_agent_id
+              ? agents.find((a) => a.id === activeTask.assigned_agent_id)
+                  ?.name ?? "Agent"
+              : "Agent"
           }
           providerApiKeysConfigured={providerApiKeysConfigured}
         />
@@ -470,5 +509,6 @@ export default function AppBoardPage() {
         </div>
       )}
     </div>
+    </RunStreamProvider>
   );
 }
