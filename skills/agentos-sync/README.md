@@ -179,10 +179,11 @@ export AGENTOS_API_URL="http://localhost:4000"
 ## Usage
 
 1. **Set env vars** (one-time): `AGENTOS_ACCESS_TOKEN` and `AGENTOS_PROJECT_ID` from Settings → API Keys.
-2. In your agent (Codex/Cursor/Claude/OpenClaw), ask to sync with AgentOS.
+2. In your agent (Codex/Cursor/Claude/OpenClaw), ask to sync with AgentOS **or include `#agentos` in the first prompt**.
 3. The skill creates a task with "AI Working" status and streams all output to the execution console.
-4. Open AgentOS and view the new task to see realtime logs.
+4. When the chat finishes, the agent calls `/runs/:runId/done`, moving the task to **Review**.
+5. Open AgentOS and view the new task to see realtime logs.
 
 **Realtime streaming:** A task is created automatically when the external agent starts. Open the task in AgentOS to see the stream. Chunks sent before you open the task are buffered and replayed when you connect. When the run completes, the full execution log is saved to the task.
 
-Invoke explicitly: type `/agentos-sync` (or `$agentos-sync` in Codex).
+Invoke explicitly: type `/agentos-sync` (or `$agentos-sync` in Codex). You can also auto-enable by including `#agentos` in the first prompt.

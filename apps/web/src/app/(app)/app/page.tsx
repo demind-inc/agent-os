@@ -152,6 +152,18 @@ export default function AppBoardPage() {
     load().catch(console.error);
   }, [projectId, router, workspaceId]);
 
+  // Restore pending run from localStorage (for refresh during active execution).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (pendingStreamRunId || pendingStreamTaskId) return;
+    const storedRunId = localStorage.getItem("agentos_active_run_id");
+    const storedTaskId = localStorage.getItem("agentos_active_task_id");
+    if (storedRunId && storedTaskId) {
+      setPendingStreamRunId(storedRunId);
+      setPendingStreamTaskId(storedTaskId);
+    }
+  }, [pendingStreamRunId, pendingStreamTaskId]);
+
   useEffect(() => {
     if (!projectId) return;
 
@@ -175,7 +187,7 @@ export default function AppBoardPage() {
   }, [projectId]);
 
   // Subscribe to task_logs only when NOT streaming. During streaming, execution log
-  // comes from WebSocket; logs are stored in DB only when the run finishes.
+  // comes from polling; logs are stored in DB only when the run finishes.
   useEffect(() => {
     if (!activeTaskId || isStreaming) return;
 
@@ -350,6 +362,10 @@ export default function AppBoardPage() {
     });
     setPendingStreamRunId(run.id);
     setPendingStreamTaskId(taskId);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("agentos_active_run_id", run.id);
+      localStorage.setItem("agentos_active_task_id", taskId);
+    }
     load().catch(console.error);
   }
 
@@ -380,7 +396,7 @@ export default function AppBoardPage() {
   }, [snackbarMessage]);
 
   // Poll logs/artifacts only when task is ai_working and NOT streaming or awaiting input.
-  // During streaming, the WebSocket provides live content; onStreamDone refetches when done.
+  // During streaming, polling provides live content; onStreamDone refetches when done.
   // When awaiting input, we already have the content; onInputSubmitted refetches after.
   useEffect(() => {
     if (!activeTaskId || activeTask?.status !== "ai_working") return;
@@ -403,6 +419,10 @@ export default function AppBoardPage() {
         loadTaskDetails(activeTaskId).then(() => {
           setPendingStreamRunId(null);
           setPendingStreamTaskId(null);
+          if (typeof window !== "undefined") {
+            localStorage.removeItem("agentos_active_run_id");
+            localStorage.removeItem("agentos_active_task_id");
+          }
         })
       }
       onStreamConnect={() => setIsStreaming(true)}

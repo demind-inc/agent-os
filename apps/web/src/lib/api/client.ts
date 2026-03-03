@@ -9,7 +9,7 @@ async function getAccessToken() {
 
   const supabase = createSupabaseClient();
   const {
-    data: { session }
+    data: { session },
   } = await supabase.auth.getSession();
 
   const token = session?.access_token ?? null;
@@ -20,7 +20,10 @@ async function getAccessToken() {
   return token;
 }
 
-export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+export async function apiFetch<T>(
+  path: string,
+  init?: RequestInit
+): Promise<T> {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
   const token = await getAccessToken();
 
@@ -30,8 +33,8 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     headers: {
       ...(hasBody ? { "Content-Type": "application/json" } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(init?.headers || {})
-    }
+      ...(init?.headers || {}),
+    },
   });
 
   if (!res.ok) {
@@ -48,68 +51,53 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   return (await res.json()) as T;
 }
 
-const apiBase = () => process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-
-function wsBase(): string {
-  const base = apiBase();
-  return base.replace(/^http/, "ws");
-}
-
 /**
- * Subscribe to run execution stream via WebSocket. Call onChunk for each structured chunk, onDone when stream ends.
- * Connects once per runId; no persistence during stream; server stores one row when done.
+ * Poll run execution stream. Call onChunk for each structured chunk, onDone when stream ends.
+ * Uses /runs/:runId/chunks with a cursor to fetch new chunks.
  */
-export function apiStreamRun(
+export function apiPollRun(
   runId: string,
-  callbacks: { onChunk: (chunk: StreamChunk) => void; onDone: () => void }
+  callbacks: { onChunk: (chunk: StreamChunk) => void; onDone: () => void },
+  options?: { intervalMs?: number }
 ): () => void {
   let closed = false;
-  let ws: WebSocket | null = null;
+  let cursor = 0;
+  let inFlight = false;
+  let timer: ReturnType<typeof setInterval> | null = null;
+  const intervalMs = options?.intervalMs ?? 1200;
 
   const close = () => {
     closed = true;
-    if (ws) {
-      try {
-        ws.close();
-      } catch {
-        // ignore
+    if (timer) clearInterval(timer);
+    timer = null;
+  };
+
+  const tick = async () => {
+    if (closed || inFlight) return;
+    inFlight = true;
+    try {
+      const data = await apiFetch<{
+        chunks: StreamChunk[];
+        nextCursor: number;
+        done?: boolean;
+      }>(`/runs/${runId}/chunks?cursor=${cursor}`);
+      cursor = Number.isFinite(data.nextCursor) ? data.nextCursor : cursor;
+      if (Array.isArray(data.chunks)) {
+        for (const chunk of data.chunks) callbacks.onChunk(chunk);
       }
-      ws = null;
+      if (data.done) {
+        callbacks.onDone();
+        close();
+      }
+    } catch {
+      // ignore errors; next poll may succeed
+    } finally {
+      inFlight = false;
     }
   };
 
-  (async () => {
-    const t = await getAccessToken();
-    if (closed) return;
-    const url = `${wsBase()}/runs/${runId}/stream${t ? `?token=${encodeURIComponent(t)}` : ""}`;
-    ws = new WebSocket(url);
-    ws.onmessage = (e) => {
-      if (closed) return;
-      try {
-        const msg = JSON.parse(e.data as string) as { event?: string; data?: string };
-        if (msg.event === "chunk" && typeof msg.data === "string") {
-          const chunk = JSON.parse(msg.data) as StreamChunk;
-          if (chunk && typeof chunk === "object" && "type" in chunk) {
-            callbacks.onChunk(chunk);
-          }
-        }
-        if (msg.event === "done") {
-          callbacks.onDone();
-          close();
-        }
-      } catch {
-        // ignore parse errors
-      }
-    };
-    ws.onclose = () => {
-      if (!closed) callbacks.onDone();
-      close();
-    };
-    ws.onerror = () => {
-      if (!closed) callbacks.onDone();
-      close();
-    };
-  })();
+  void tick();
+  timer = setInterval(tick, intervalMs);
 
   return close;
 }

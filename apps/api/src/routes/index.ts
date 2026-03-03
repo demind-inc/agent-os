@@ -5,10 +5,12 @@ import { enqueueRun } from "../services/runner.js";
 import {
   broadcastRunStreamChunk,
   broadcastRunStreamDone,
+  getRunStreamBuffer,
   registerRunStream,
   unregisterRunStream,
   type RunStreamSender,
 } from "../services/run-stream-registry.js";
+import type { StreamChunk } from "../types/stream-chunk.js";
 
 const createTaskSchema = z.object({
   title: z.string().min(1),
@@ -731,6 +733,46 @@ export async function registerRoutes(app: FastifyInstance) {
       registerRunStream(runId, send);
       socket.on('close', () => unregisterRunStream(runId, send));
     })();
+  });
+
+  app.get('/runs/:runId/chunks', async (request, reply) => {
+    const user = (request as any).user;
+    const params = request.params as { runId: string };
+    const query = request.query as { cursor?: string };
+    const cursor = query.cursor ? Number.parseInt(query.cursor, 10) : 0;
+
+    const { data: run } = await adminSupabase
+      .from('agent_runs')
+      .select('id, task_id')
+      .eq('id', params.runId)
+      .single();
+    if (!run) return reply.status(404).send({ error: 'Run not found' });
+
+    const { data: task } = await adminSupabase
+      .from('tasks')
+      .select('project_id, projects(workspace_id)')
+      .eq('id', run.task_id)
+      .single();
+    if (!task) return reply.status(404).send({ error: 'Run task not found' });
+    const workspaceId = (task as any).projects?.workspace_id as string | undefined;
+    if (!workspaceId) return reply.status(404).send({ error: 'Task project not found' });
+    await assertWorkspaceMember(user.id, workspaceId);
+
+    const { events, nextCursor, done } = getRunStreamBuffer(params.runId, cursor);
+    const chunks: StreamChunk[] = [];
+    for (const evt of events) {
+      if (evt.event !== 'chunk') continue;
+      try {
+        const parsed = JSON.parse(evt.data) as StreamChunk;
+        if (parsed && typeof parsed === 'object' && 'type' in parsed) {
+          chunks.push(parsed);
+        }
+      } catch {
+        // ignore parse errors
+      }
+    }
+
+    return { chunks, nextCursor, done };
   });
 
   app.get('/tasks/:taskId/logs', async (request, reply) => {

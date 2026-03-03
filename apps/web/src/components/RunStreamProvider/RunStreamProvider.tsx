@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { apiStreamRun } from "@/lib/api/client";
+import { apiPollRun } from "@/lib/api/client";
 import type { StreamChunk } from "@/types/stream-chunk";
 
 export type StreamChunkEntry = {
@@ -32,7 +32,7 @@ export function useRunStream(): RunStreamContextValue {
 
 type RunStreamProviderProps = {
   children: ReactNode;
-  /** Run id to subscribe to; when set with isRunning, connects WebSocket. */
+  /** Run id to subscribe to; when set with isRunning, starts polling. */
   activeRunId: string | null;
   /** Whether the run is active (queued or running). */
   isRunning: boolean;
@@ -68,7 +68,7 @@ export function RunStreamProvider({
   }, [taskId]);
 
   // Subscribe to run stream when isRunning and activeRunId are set.
-  // Callbacks in refs to avoid effect re-running on parent re-renders (prevents duplicate WebSocket connections).
+  // Callbacks in refs to avoid effect re-running on parent re-renders (prevents duplicate polling loops).
   useEffect(() => {
     if (!isRunning || !activeRunId) {
       if (!isRunning) onStreamDisconnectRef.current?.();
@@ -84,7 +84,7 @@ export function RunStreamProvider({
     }
     onStreamConnectRef.current?.();
 
-    const close = apiStreamRun(activeRunId, {
+    const close = apiPollRun(activeRunId, {
       onChunk: (chunk) => {
         const timestamp = new Date().toLocaleTimeString(undefined, {
           hour: "numeric",

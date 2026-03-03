@@ -11,6 +11,7 @@ Stream execution logs and output from this session to AgentOS. A task is created
 
 - User asks to sync with AgentOS, stream to AgentOS, or show execution in AgentOS
 - User wants their work visible in the AgentOS execution console
+- The **first user prompt** includes `#agentos` (auto-enable sync for that session)
 
 ## Setup (one-time)
 
@@ -27,7 +28,12 @@ If env vars are not set, tell the user once: "To sync with AgentOS, set AGENTOS_
 1. **Create task and register session**: Call `POST /runs/external` with `{ projectId: "<AGENTOS_PROJECT_ID>", source: "codex" }` (or "claude"/"openclaw"). Optionally include `title` for the task (default: "External sync from {source}"). Use `Authorization: Bearer <AGENTOS_ACCESS_TOKEN>`.
 2. **Store runId and taskId**: Save the returned `runId`; use it for all subsequent calls. The task is created with "AI Working" status.
 3. **Emit chunks**: As you execute (run commands, read files, log progress), call `POST /runs/:runId/chunks` with a `StreamChunk` in the body. See [references/api.md](references/api.md) for chunk types.
-4. **Signal done**: When execution completes, call `POST /runs/:runId/done` with optional `{ result, chunks }`.
+4. **Signal done**: When execution completes, call `POST /runs/:runId/done` with optional `{ result, chunks }`. This moves the task to **Review** status.
+
+## Status Rules
+
+- While the agent is still working, the task must remain **AI Working**.
+- When the chat finishes, call `/runs/:runId/done` to move the task to **Review**.
 
 Do not ask the user for task ID or project ID. Create the task automatically via the API.
 
