@@ -530,6 +530,7 @@ export default function SettingsPage() {
                 INTEGRATION_PROVIDERS
               )}
               integrationsLoading={integrationsLoading}
+              workspaceId={workspaceId}
             />
           )}
 
