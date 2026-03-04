@@ -4,6 +4,7 @@
  */
 
 import OpenAI from "openai";
+import { Chat } from "openai/resources";
 import type { StreamChunk } from "../types/stream-chunk.js";
 import { executeGitHubTool, type GitHubToolName } from "./github-tools.js";
 
@@ -54,17 +55,19 @@ const GITHUB_TOOL_NAMES = new Set<GitHubToolName>([
 ]);
 
 function slugifyForBranch(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 50) || "changes";
+  return (
+    text
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 50) || "changes"
+  );
 }
 
 function getOpenAITools(
   githubAccessToken: string | null
-): OpenAI.Chat.Completions.ChatCompletionTool[] {
-  const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
+): Chat.Completions.ChatCompletionTool[] {
+  const tools: Chat.Completions.ChatCompletionTool[] = [
     {
       type: "function",
       function: {
@@ -165,7 +168,10 @@ function getOpenAITools(
             properties: {
               owner: { type: "string", description: "Repository owner" },
               repo: { type: "string", description: "Repository name" },
-              limit: { type: "number", description: "Max results (default 30)" },
+              limit: {
+                type: "number",
+                description: "Max results (default 30)",
+              },
             },
             required: ["owner", "repo"],
           },
@@ -186,7 +192,10 @@ function getOpenAITools(
                 type: "string",
                 description: "Branch name or commit SHA to list commits from",
               },
-              limit: { type: "number", description: "Max results (default 20)" },
+              limit: {
+                type: "number",
+                description: "Max results (default 20)",
+              },
             },
             required: ["owner", "repo"],
           },
@@ -297,8 +306,8 @@ function emitTextAsChunks(
 
 function convertToOpenAIMessages(
   messages: Array<Record<string, unknown>>
-): OpenAI.Chat.Completions.ChatCompletionMessageParam[] {
-  const out: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
+): Chat.Completions.ChatCompletionMessageParam[] {
+  const out: Chat.Completions.ChatCompletionMessageParam[] = [];
 
   for (const m of messages) {
     const role = m.role as string;
@@ -454,11 +463,10 @@ Rules:
     console.log("[Codex] Round", round, "messages:", messages.length);
     // }
 
-    const openAIMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] =
-      [
-        { role: "system", content: systemPrompt },
-        ...convertToOpenAIMessages(messages),
-      ];
+    const openAIMessages: Chat.Completions.ChatCompletionMessageParam[] = [
+      { role: "system", content: systemPrompt },
+      ...convertToOpenAIMessages(messages),
+    ];
 
     const response = await client.chat.completions.create({
       model,
@@ -630,7 +638,9 @@ Rules:
 
       // When finish_reason is "stop" with no tool calls, pause for user input instead of marking done
       if (finishReason === "stop") {
-        const syntheticId = `synthetic-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        const syntheticId = `synthetic-${Date.now()}-${Math.random()
+          .toString(36)
+          .slice(2)}`;
         const agentText = (content as string).trim();
         const seemsToAskForInput =
           /would you|could you|please provide|should i |can you provide|i need (to|your)|would you like to|or should i |confirm|locating|having difficulty/i.test(
@@ -651,12 +661,19 @@ Rules:
         ];
         const prompt = { kind: "user_prompt" as const, message: promptMessage };
 
-        await onLog("info", "Agent stopped with no tool calls; pausing for user input.", {
-          source: "runner",
-          finish_reason: finishReason,
-        });
+        await onLog(
+          "info",
+          "Agent stopped with no tool calls; pausing for user input.",
+          {
+            source: "runner",
+            finish_reason: finishReason,
+          }
+        );
         options.onStreamPrompt?.(prompt);
-        options.onStreamChunk?.({ type: "user_prompt", message: promptMessage });
+        options.onStreamChunk?.({
+          type: "user_prompt",
+          message: promptMessage,
+        });
 
         return {
           paused: true,
