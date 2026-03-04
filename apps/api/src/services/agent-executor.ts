@@ -6,7 +6,7 @@
  * The agent can access GitHub via tools when the workspace has a connected integration.
  */
 
-import Anthropic from "@anthropic-ai/sdk";
+import { Anthropic } from "@anthropic-ai/sdk";
 import { Message, MessageParam } from "@anthropic-ai/sdk/resources";
 import type { StreamChunk } from "../types/stream-chunk.js";
 import { executeGitHubTool, type GitHubToolName } from "./github-tools.js";
@@ -407,8 +407,12 @@ Rules:
     });
     lastResponse = response;
 
-    const textBlocks = response.content.filter((b) => b.type === "text");
-    const toolUseBlocks = response.content.filter((b) => b.type === "tool_use");
+    const textBlocks = response.content.filter(
+      (b: { type: string }) => b.type === "text"
+    );
+    const toolUseBlocks = response.content.filter(
+      (b: { type: string }) => b.type === "tool_use"
+    );
     const stopReason = (response as { stop_reason?: string }).stop_reason;
 
     for (const block of textBlocks) {
