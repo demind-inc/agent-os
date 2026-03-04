@@ -22,6 +22,13 @@ npx @agentos/cli auth set
 # Enter the API key from AgentOS → Settings → API Keys → Create API key (copy the key once; it is scoped to a project)
 ```
 
+If `agentos` is not installed or not on PATH, either keep using `npx @agentos/cli ...` or install it globally:
+
+```bash
+npm i -g @agentos/cli
+agentos auth set
+```
+
 Credentials are stored in `~/.agentos/config.json`. No OAuth token, project ID, or API URL needed—just the API key. When the user has run `agentos auth set`, the skill has access to AgentOS when it invokes `agentos sync` commands.
 
 **Option B — Environment variable**  

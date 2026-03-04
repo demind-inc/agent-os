@@ -1,0 +1,20 @@
+{
+  "name": "skills",
+  "version": "0.1.0",
+  "description": "Install skills for Cursor, Codex, and Claude. Use from any environment: npx skills add <url-or-name>",
+  "type": "module",
+  "bin": {
+    "skills": "./dist/skills.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "typescript": "^5.8.2"
+  }
+}
