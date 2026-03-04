@@ -7,6 +7,7 @@
  */
 
 import Anthropic from "@anthropic-ai/sdk";
+import { Message, MessageParam } from "@anthropic-ai/sdk/resources";
 import type { StreamChunk } from "../types/stream-chunk.js";
 import { executeGitHubTool, type GitHubToolName } from "./github-tools.js";
 
@@ -227,11 +228,13 @@ function getTools(githubAccessToken: string | null): MessageTool[] {
 }
 
 function slugifyForBranch(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 50) || "changes";
+  return (
+    text
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 50) || "changes"
+  );
 }
 
 const GITHUB_TOOL_NAMES = new Set<GitHubToolName>([
@@ -287,9 +290,9 @@ function emitTextAsChunks(
     const end = sectionIndices[i + 1] ?? text.length;
     const raw = text.slice(start, end);
     const firstNewline = raw.indexOf("\n");
-    const title = (
-      firstNewline >= 0 ? raw.slice(0, firstNewline) : raw
-    ).replace(/^##\s+/, "").trim();
+    const title = (firstNewline >= 0 ? raw.slice(0, firstNewline) : raw)
+      .replace(/^##\s+/, "")
+      .trim();
     const body = firstNewline >= 0 ? raw.slice(firstNewline + 1) : "";
 
     emit({ type: "section", title });
@@ -391,7 +394,7 @@ Rules:
 
   const MAX_TOOL_ROUNDS = 10;
   let round = 0;
-  let lastResponse!: Anthropic.Message;
+  let lastResponse!: Message;
 
   while (round < MAX_TOOL_ROUNDS) {
     round++;
@@ -399,7 +402,7 @@ Rules:
       model,
       max_tokens: 20000,
       system: systemPrompt,
-      messages: messages as Anthropic.MessageParam[],
+      messages: messages as MessageParam[],
       tools,
     });
     lastResponse = response;
@@ -460,25 +463,34 @@ Rules:
         const c = msg.content;
         if (!Array.isArray(c)) return false;
         return (c as Array<{ type?: string; name?: string }>).some(
-          (x) => x.type === "tool_use" && x.name === "github_create_pull_request"
+          (x) =>
+            x.type === "tool_use" && x.name === "github_create_pull_request"
         );
       });
 
       if (process.env.NODE_ENV === "development") {
-        const lastText = (response.content as Array<{ type?: string; text?: string }>)
-          ?.filter((b) => b.type === "text")
-          .map((b) => b.text ?? "")
-          .join("")
-          .slice(0, 300) ?? "";
-        console.log("[Agent Debug] Model returned with no tool calls, considering done:", {
-          round,
-          stop_reason: stopReason,
-          toolUseBlocksCount: toolUseBlocks.length,
-          taskMentionsPR,
-          hasCreatedPR,
-          willNudge: taskMentionsPR && !hasCreatedPR && !!githubAccessToken && round < MAX_TOOL_ROUNDS - 1,
-          lastContentPreview: lastText + (lastText.length >= 300 ? "…" : ""),
-        });
+        const lastText =
+          (response.content as Array<{ type?: string; text?: string }>)
+            ?.filter((b) => b.type === "text")
+            .map((b) => b.text ?? "")
+            .join("")
+            .slice(0, 300) ?? "";
+        console.log(
+          "[Agent Debug] Model returned with no tool calls, considering done:",
+          {
+            round,
+            stop_reason: stopReason,
+            toolUseBlocksCount: toolUseBlocks.length,
+            taskMentionsPR,
+            hasCreatedPR,
+            willNudge:
+              taskMentionsPR &&
+              !hasCreatedPR &&
+              !!githubAccessToken &&
+              round < MAX_TOOL_ROUNDS - 1,
+            lastContentPreview: lastText + (lastText.length >= 300 ? "…" : ""),
+          }
+        );
       }
 
       if (
@@ -487,14 +499,19 @@ Rules:
         githubAccessToken &&
         round < MAX_TOOL_ROUNDS - 1
       ) {
-        await onLog("info", "Task mentions PR but no PR created yet; nudging agent to continue.", {
-          source: "runner",
-        });
+        await onLog(
+          "info",
+          "Task mentions PR but no PR created yet; nudging agent to continue.",
+          {
+            source: "runner",
+          }
+        );
         if (options.onStreamChunk) {
           void Promise.resolve(
             options.onStreamChunk({
               type: "text",
-              content: "\n\n_[Task requires a PR; prompting agent to create it…]_",
+              content:
+                "\n\n_[Task requires a PR; prompting agent to create it…]_",
             })
           ).catch(() => {});
         }
@@ -513,8 +530,12 @@ Rules:
 
       // When stop_reason is "end_turn" with no tool calls, pause for user input instead of marking done
       if (stopReason === "end_turn") {
-        const syntheticId = `synthetic-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-        const agentText = (response.content as Array<{ type?: string; text?: string }>)
+        const syntheticId = `synthetic-${Date.now()}-${Math.random()
+          .toString(36)
+          .slice(2)}`;
+        const agentText = (
+          response.content as Array<{ type?: string; text?: string }>
+        )
           ?.filter((b) => b.type === "text")
           .map((b) => b.text ?? "")
           .join("")
@@ -538,12 +559,19 @@ Rules:
         ];
         const prompt = { kind: "user_prompt" as const, message: promptMessage };
 
-        await onLog("info", "Agent stopped with no tool calls; pausing for user input.", {
-          source: "runner",
-          stop_reason: stopReason,
-        });
+        await onLog(
+          "info",
+          "Agent stopped with no tool calls; pausing for user input.",
+          {
+            source: "runner",
+            stop_reason: stopReason,
+          }
+        );
         options.onStreamPrompt?.(prompt);
-        options.onStreamChunk?.({ type: "user_prompt", message: promptMessage });
+        options.onStreamChunk?.({
+          type: "user_prompt",
+          message: promptMessage,
+        });
 
         return {
           paused: true,
