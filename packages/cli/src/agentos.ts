@@ -86,8 +86,9 @@ async function authSet(rest: string[]): Promise<void> {
   const ask = (q: string): Promise<string> =>
     new Promise((res) => rl.question(q, res));
 
-  let apiKey = rest[0] || process.env.AGENTOS_API_KEY || process.env.AGENTOS_KEY;
-  let apiUrl = rest[1] || process.env.AGENTOS_API_URL;
+  let apiKey =
+    rest[0] || process.env.AGENTOS_API_KEY || process.env.AGENTOS_KEY;
+  let apiUrl = rest[1] || "https://agent-os-api-nine.vercel.app";
 
   if (!apiKey)
     apiKey = (
