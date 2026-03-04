@@ -31,6 +31,20 @@ type Artifact = {
   metadata?: Record<string, unknown>;
 };
 
+const SOURCE_LABELS: Record<string, string> = {
+  codex: "Codex",
+  claude: "Claude",
+  openclaw: "OpenClaw",
+};
+
+function getSourceLabel(source?: string | null): string | null {
+  if (!source) return null;
+  return (
+    SOURCE_LABELS[source] ??
+    source.charAt(0).toUpperCase() + source.slice(1)
+  );
+}
+
 export default function AppBoardPage() {
   const router = useRouter();
   const [view, setView] = useState<"board" | "list">("board");
@@ -79,7 +93,7 @@ export default function AppBoardPage() {
     []
   );
 
-  async function load() {
+  const load = useCallback(async () => {
     if (!projectId || !workspaceId) return;
     const [
       tasksData,
@@ -136,7 +150,7 @@ export default function AppBoardPage() {
         );
       } else setUserInitials(email?.slice(0, 2).toUpperCase() || "?");
     }
-  }
+  }, [projectId, workspaceId]);
 
   useEffect(() => {
     if (!workspaceId) {
@@ -150,7 +164,19 @@ export default function AppBoardPage() {
     }
 
     load().catch(console.error);
-  }, [projectId, router, workspaceId]);
+  }, [load, projectId, router, workspaceId]);
+
+  // Restore pending run from localStorage (for refresh during active execution).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (pendingStreamRunId || pendingStreamTaskId) return;
+    const storedRunId = localStorage.getItem("agentos_active_run_id");
+    const storedTaskId = localStorage.getItem("agentos_active_task_id");
+    if (storedRunId && storedTaskId) {
+      setPendingStreamRunId(storedRunId);
+      setPendingStreamTaskId(storedTaskId);
+    }
+  }, [pendingStreamRunId, pendingStreamTaskId]);
 
   useEffect(() => {
     if (!projectId) return;
@@ -172,10 +198,32 @@ export default function AppBoardPage() {
     return () => {
       supabase.removeChannel(channel).catch(console.error);
     };
-  }, [projectId]);
+  }, [load, projectId]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!projectId || !workspaceId) return;
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        load().catch(console.error);
+      }
+    };
+    const handleFocus = () => {
+      load().catch(console.error);
+    };
+
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [load, projectId, workspaceId]);
 
   // Subscribe to task_logs only when NOT streaming. During streaming, execution log
-  // comes from WebSocket; logs are stored in DB only when the run finishes.
+  // comes from polling; logs are stored in DB only when the run finishes.
   useEffect(() => {
     if (!activeTaskId || isStreaming) return;
 
@@ -232,6 +280,12 @@ export default function AppBoardPage() {
           (r.status === "queued" || r.status === "running")
       )
     : null;
+  const latestRunForTask = activeTask
+    ? runs.find((r) => r.task_id === activeTask.id) ?? null
+    : null;
+  const agentSourceLabel = getSourceLabel(
+    activeRun?.source ?? latestRunForTask?.source ?? null
+  );
   /** Run awaiting user input (e.g. OAuth, chat response) — shown in execution console. */
   const awaitingInputRun = activeTask
     ? runs.find(
@@ -350,6 +404,10 @@ export default function AppBoardPage() {
     });
     setPendingStreamRunId(run.id);
     setPendingStreamTaskId(taskId);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("agentos_active_run_id", run.id);
+      localStorage.setItem("agentos_active_task_id", taskId);
+    }
     load().catch(console.error);
   }
 
@@ -380,7 +438,7 @@ export default function AppBoardPage() {
   }, [snackbarMessage]);
 
   // Poll logs/artifacts only when task is ai_working and NOT streaming or awaiting input.
-  // During streaming, the WebSocket provides live content; onStreamDone refetches when done.
+  // During streaming, polling provides live content; onStreamDone refetches when done.
   // When awaiting input, we already have the content; onInputSubmitted refetches after.
   useEffect(() => {
     if (!activeTaskId || activeTask?.status !== "ai_working") return;
@@ -403,6 +461,10 @@ export default function AppBoardPage() {
         loadTaskDetails(activeTaskId).then(() => {
           setPendingStreamRunId(null);
           setPendingStreamTaskId(null);
+          if (typeof window !== "undefined") {
+            localStorage.removeItem("agentos_active_run_id");
+            localStorage.removeItem("agentos_active_task_id");
+          }
         })
       }
       onStreamConnect={() => setIsStreaming(true)}
@@ -417,6 +479,7 @@ export default function AppBoardPage() {
         runs={runs}
         tasks={tasks}
         agents={agents}
+        onTaskClick={openTask}
       />
       <div className="appBoard__main">
         <TopBar
@@ -495,10 +558,11 @@ export default function AppBoardPage() {
               : null
           }
           assignedAgentName={
-            activeTask.assigned_agent_id
+            agentSourceLabel ??
+            (activeTask.assigned_agent_id
               ? agents.find((a) => a.id === activeTask.assigned_agent_id)
                   ?.name ?? "Agent"
-              : "Agent"
+              : "Agent")
           }
           providerApiKeysConfigured={providerApiKeysConfigured}
         />

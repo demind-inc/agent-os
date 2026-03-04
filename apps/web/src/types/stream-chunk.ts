@@ -18,6 +18,12 @@ export type StreamChunk =
       summary?: string;
       tokens?: number;
     }
+  | {
+      type: "write_file";
+      path: string;
+      /** Optional snippet, diff, or summary of changes made. */
+      content?: string;
+    }
   | { type: "user_prompt"; message: string }
   | {
       type: "agent_log";

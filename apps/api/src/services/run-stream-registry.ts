@@ -10,8 +10,21 @@
 export type RunStreamSender = (event: string, data: string) => void;
 
 const runStreams = new Map<string, Set<RunStreamSender>>();
-/** Buffered chunks for runs with no connected clients yet (e.g. external agent started first). */
+/** Buffered chunks for all runs (external or local) so pollers can fetch history. */
 const chunkBuffers = new Map<string, Array<{ event: string; data: string }>>();
+const cleanupTimers = new Map<string, NodeJS.Timeout>();
+
+const CLEANUP_DELAY_MS = 5 * 60 * 1000;
+
+function scheduleCleanup(runId: string) {
+  const existing = cleanupTimers.get(runId);
+  if (existing) clearTimeout(existing);
+  const timeout = setTimeout(() => {
+    chunkBuffers.delete(runId);
+    cleanupTimers.delete(runId);
+  }, CLEANUP_DELAY_MS);
+  cleanupTimers.set(runId, timeout);
+}
 
 export function registerRunStream(runId: string, send: RunStreamSender): void {
   let set = runStreams.get(runId);
@@ -43,6 +56,14 @@ export function unregisterRunStream(runId: string, send: RunStreamSender): void 
 }
 
 export function broadcastRunStreamChunk(runId: string, event: string, data: string): void {
+  // Always buffer so polling clients can catch up.
+  let buffer = chunkBuffers.get(runId);
+  if (!buffer) {
+    buffer = [];
+    chunkBuffers.set(runId, buffer);
+  }
+  buffer.push({ event, data });
+
   const set = runStreams.get(runId);
   if (set && set.size > 0) {
     for (const send of set) {
@@ -52,19 +73,23 @@ export function broadcastRunStreamChunk(runId: string, event: string, data: stri
         // ignore per-client errors
       }
     }
-  } else {
-    // No clients connected yet (e.g. external run, app hasn't opened task). Buffer for late joiners.
-    let buffer = chunkBuffers.get(runId);
-    if (!buffer) {
-      buffer = [];
-      chunkBuffers.set(runId, buffer);
-    }
-    buffer.push({ event, data });
   }
 }
 
 export function broadcastRunStreamDone(runId: string): void {
   broadcastRunStreamChunk(runId, "done", "{}");
   runStreams.delete(runId);
-  chunkBuffers.delete(runId);
+  scheduleCleanup(runId);
+}
+
+export function getRunStreamBuffer(
+  runId: string,
+  cursor: number
+): { events: Array<{ event: string; data: string }>; nextCursor: number; done: boolean } {
+  const buffer = chunkBuffers.get(runId) ?? [];
+  const safeCursor = Number.isFinite(cursor) && cursor > 0 ? Math.floor(cursor) : 0;
+  const events = buffer.slice(safeCursor);
+  const nextCursor = buffer.length;
+  const done = events.some((evt) => evt.event === "done");
+  return { events, nextCursor, done };
 }

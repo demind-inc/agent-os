@@ -29,6 +29,7 @@ type AppSidebarProps = {
   tasks: Task[];
   agents: Agent[];
   userInitials?: string;
+  onTaskClick?: (taskId: string) => void;
 };
 
 export function AppSidebar({
@@ -39,7 +40,8 @@ export function AppSidebar({
   runs,
   tasks,
   agents = [],
-  userInitials = "JD"
+  userInitials = "JD",
+  onTaskClick,
 }: AppSidebarProps) {
   const activeRuns = runs.filter((run) =>
     ["queued", "running", "awaiting_input"].includes(run.status)
@@ -92,8 +94,27 @@ export function AppSidebar({
             activeRuns.map((run, i) => {
               const agent = agents.find((a) => a.id === run.agent_id);
               const agentName = agent?.name ?? "Agent";
+              const taskTitle = tasks.find((t) => t.id === run.task_id)?.title ?? "Unknown task";
+              const clickable = !!onTaskClick;
               return (
-              <div key={run.id} className="appSidebar__agentItem">
+              <div
+                key={run.id}
+                className={`appSidebar__agentItem${clickable ? " appSidebar__agentItem--clickable" : ""}`}
+                role={clickable ? "button" : undefined}
+                tabIndex={clickable ? 0 : undefined}
+                onClick={clickable ? () => onTaskClick(run.task_id) : undefined}
+                onKeyDown={
+                  clickable
+                    ? (e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          onTaskClick(run.task_id);
+                        }
+                      }
+                    : undefined
+                }
+                title={clickable ? `Open: ${taskTitle}` : undefined}
+              >
                 <div
                   className="appSidebar__agentAvatar"
                   style={{ backgroundColor: AGENT_AVATAR_COLORS[i % AGENT_AVATAR_COLORS.length] }}
@@ -102,9 +123,7 @@ export function AppSidebar({
                 </div>
                 <div className="appSidebar__agentInfo">
                   <span className="appSidebar__agentName">{agentName}</span>
-                  <span className="appSidebar__agentTask">
-                    {tasks.find((t) => t.id === run.task_id)?.title ?? "Unknown task"}
-                  </span>
+                  <span className="appSidebar__agentTask">{taskTitle}</span>
                   <span className={`appSidebar__agentStatus appSidebar__agentStatus--${run.status}`}>
                     {run.status.replace("_", " ")}
                   </span>

@@ -484,7 +484,7 @@ Rules:
 
     const msg = choice.message;
     const content = msg.content ?? "";
-    const toolCalls = msg.tool_calls ?? [];
+    const toolCalls = (msg.tool_calls ?? []) as ChatCompletionMessageToolCall[];
 
     // if (process.env.NODE_ENV === "development") {
     console.log("[Codex] Response:", {

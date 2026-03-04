@@ -148,10 +148,10 @@ The API key lets the skill call the AgentOS API directly (no CLI required). Each
 
 The skill calls the AgentOS API directly with your API key. No CLI required.
 
-| Variable           | Description              | Default                 |
-| ------------------ | ------------------------ | ----------------------- |
-| `AGENTOS_API_KEY`  | API key from web app     | **Required**            |
-| `AGENTOS_API_URL`  | AgentOS API base URL     | `http://localhost:4000` |
+| Variable          | Description          | Default                 |
+| ----------------- | -------------------- | ----------------------- |
+| `AGENTOS_API_KEY` | API key from web app | **Required**            |
+| `AGENTOS_API_URL` | AgentOS API base URL | `http://localhost:4000` |
 
 **Codex / Cursor / Claude:** Set in shell profile or `.env`:
 
@@ -173,4 +173,4 @@ export AGENTOS_API_URL="http://localhost:4000"
 
 **Realtime streaming:** A task is created automatically when the external agent starts. Open the task in AgentOS to see the stream. Chunks sent before you open the task are buffered and replayed when you connect. When the run completes, the full execution log is saved to the task.
 
-Invoke explicitly: type `/agentos-sync` (or `$agentos-sync` in Codex).
+Invoke explicitly: type `/agentos-sync` (or `$agentos-sync` in Codex). You can also auto-enable by including `#agentos` in the first prompt.

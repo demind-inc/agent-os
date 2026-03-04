@@ -12,10 +12,12 @@ import { enqueueRun } from "../services/runner.js";
 import {
   broadcastRunStreamChunk,
   broadcastRunStreamDone,
+  getRunStreamBuffer,
   registerRunStream,
   unregisterRunStream,
   type RunStreamSender,
 } from "../services/run-stream-registry.js";
+import type { StreamChunk } from "../types/stream-chunk.js";
 
 const createTaskSchema = z.object({
   title: z.string().min(1),
@@ -464,12 +466,9 @@ export async function registerRoutes(app: FastifyInstance) {
       body.status !== "done" &&
       body.status !== "failed"
     ) {
-      return reply
-        .status(400)
-        .send({
-          error:
-            "Task in review can only move to done/failed via review actions",
-        });
+      return reply.status(400).send({
+        error: "Task in review can only move to done/failed via review actions",
+      });
     }
 
     const next = { ...body } as any;
@@ -619,6 +618,27 @@ export async function registerRoutes(app: FastifyInstance) {
       )
       .parse(request.body);
 
+    const applySourceTag = (
+      metadata: Record<string, unknown> | null | undefined,
+      source: string
+    ) => {
+      const next = { ...(metadata ?? {}) };
+      const existing = Array.isArray((next as any).tags)
+        ? (next as any).tags
+        : [];
+      const tagList = existing.filter(
+        (tag: unknown) => typeof tag === "string"
+      ) as string[];
+      const normalized = source.toLowerCase();
+      if (!tagList.some((tag) => tag.toLowerCase() === normalized)) {
+        tagList.push(source);
+      }
+      if (tagList.length > 0) {
+        (next as any).tags = tagList;
+      }
+      return next;
+    };
+
     let taskId: string;
     let workspaceId: string;
 
@@ -632,6 +652,12 @@ export async function registerRoutes(app: FastifyInstance) {
       workspaceId = (task as any).projects?.workspace_id as string;
       taskId = task.id;
       await assertWorkspaceMember(user.id, workspaceId);
+
+      const nextMetadata = applySourceTag((task as any).metadata, body.source);
+      await adminSupabase
+        .from("tasks")
+        .update({ metadata: nextMetadata })
+        .eq("id", taskId);
     } else {
       const projectId = body.projectId ?? apiKeyProjectId!;
       const { data: project } = await adminSupabase
@@ -663,7 +689,7 @@ export async function registerRoutes(app: FastifyInstance) {
           description: "",
           status: "ai_working",
           assigned_agent_id: firstAgent.id,
-          metadata: {},
+          metadata: applySourceTag({}, body.source),
         })
         .select("id")
         .single();
@@ -824,6 +850,7 @@ export async function registerRoutes(app: FastifyInstance) {
     const body = z
       .object({
         result: z.string().optional(),
+        output: z.string().optional(),
         chunks: z.array(streamChunkSchema).optional(),
       })
       .parse(request.body ?? {});
@@ -870,13 +897,40 @@ export async function registerRoutes(app: FastifyInstance) {
       .eq("type", "execution_log")
       .maybeSingle();
 
+    const summary = body.result ?? "";
+    const output = body.output ?? "";
+    const combinedPreview = [summary, output].filter(Boolean).join("\n\n");
+    const bufferedChunks = (() => {
+      const { events } = getRunStreamBuffer(params.runId, 0);
+      const chunks: StreamChunk[] = [];
+      for (const evt of events) {
+        if (evt.event !== "chunk") continue;
+        try {
+          const parsed = JSON.parse(evt.data) as StreamChunk;
+          if (parsed && typeof parsed === "object" && "type" in parsed) {
+            chunks.push(parsed);
+          }
+        } catch {
+          // ignore parse errors
+        }
+      }
+      return chunks;
+    })();
+    const resolvedChunks =
+      Array.isArray(body.chunks) && body.chunks.length > 0
+        ? body.chunks
+        : bufferedChunks;
+
     const metadata: Record<string, unknown> = {
       source: "external",
       content: body.result ?? "",
       preview: body.result ?? "",
     };
-    if (Array.isArray(body.chunks) && body.chunks.length > 0) {
-      metadata.chunks = body.chunks;
+    if ((run as any).source) {
+      metadata.agent_source = (run as any).source;
+    }
+    if (resolvedChunks.length > 0) {
+      metadata.chunks = resolvedChunks;
     }
 
     if (existing) {
