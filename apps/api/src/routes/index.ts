@@ -420,7 +420,7 @@ export async function registerRoutes(app: FastifyInstance) {
       .object({
         taskId: z.string().uuid().optional(),
         projectId: z.string().uuid().optional(),
-        source: z.enum(['codex', 'claude', 'openclaw']),
+        source: z.enum(['codex', 'claude', 'cursor', 'openclaw']),
         agentId: z.string().uuid().optional(),
         title: z.string().optional(),
       })

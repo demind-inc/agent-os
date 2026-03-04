@@ -14,22 +14,46 @@ Stream execution logs and output from this session to AgentOS. A task is created
 
 ## Setup (one-time)
 
-Read from environment variables. Do not ask the user for task ID, project ID, or token in chat—use env vars.
+**Option A — AgentOS CLI (recommended)**  
+Install and configure the CLI so this skill can sync without env vars:
 
-1. **AGENTOS_ACCESS_TOKEN** (required): AgentOS JWT. User gets it from AgentOS → Settings → API Keys → Copy access token.
-2. **AGENTOS_PROJECT_ID** (required): Project UUID where tasks are created. User gets it from AgentOS (Settings → External Sync → Copy project ID, or from the app URL when viewing a project).
+```bash
+# From the agentos repo (or after npm link / global install)
+npx @agentos/cli auth set
+# Enter access token and project ID from AgentOS → Settings → API Keys
+```
+
+Credentials are stored in `~/.agentos/config.json`. When the user has run `agentos auth set`, the skill has access to AgentOS when it invokes `agentos sync` commands.
+
+**Option B — Environment variables**  
+Set in shell or `.env`; the CLI and skill use these if set:
+
+1. **AGENTOS_ACCESS_TOKEN** (required): AgentOS JWT from Settings → API Keys → Copy access token.
+2. **AGENTOS_PROJECT_ID** (required): Project UUID from Settings → API Keys → Copy project ID.
 3. **AGENTOS_API_URL** (optional): Default `http://localhost:4000`.
 
-If env vars are not set, tell the user once: "To sync with AgentOS, set AGENTOS_ACCESS_TOKEN and AGENTOS_PROJECT_ID in your environment. See the agentos-sync README for setup."
+If neither CLI config nor env is set, tell the user once: "To sync with AgentOS, run `agentos auth set` or set AGENTOS_ACCESS_TOKEN and AGENTOS_PROJECT_ID. See the agentos-sync README."
 
 ## Workflow
 
-1. **Create task and register session**: Call `POST /runs/external` with `{ projectId: "<AGENTOS_PROJECT_ID>", source: "codex" }` (or "claude"/"openclaw"). Optionally include `title` for the task (default: "External sync from {source}"). Use `Authorization: Bearer <AGENTOS_ACCESS_TOKEN>`.
-2. **Store runId and taskId**: Save the returned `runId`; use it for all subsequent calls. The task is created with "AI Working" status.
-3. **Emit chunks**: As you execute (run commands, read files, log progress), call `POST /runs/:runId/chunks` with a `StreamChunk` in the body. See [references/api.md](references/api.md) for chunk types.
-4. **Signal done**: When execution completes, call `POST /runs/:runId/done` with optional `{ result, chunks }`.
+Use the **AgentOS CLI** (same binary that manages auth). The CLI reads credentials from env or from `~/.agentos/config.json`:
 
-Do not ask the user for task ID or project ID. Create the task automatically via the API.
+```bash
+# 1. Start — creates task in AgentOS, saves runId for this session
+agentos sync start "Task title from user prompt"
+
+# 2. Stream chunks throughout execution
+agentos sync chunk '{"type":"section","title":"Planning","content":"Analyzing the request"}'
+agentos sync chunk '{"type":"command","command":"npm test","output":"All passed","status":"done"}'
+agentos sync chunk '{"type":"text","content":"Updated src/app.ts"}'
+agentos sync chunk '{"type":"read_file","path":"src/index.ts","summary":"Entry point"}'
+agentos sync chunk '{"type":"agent_log","level":"info","message":"Step complete"}'
+
+# 3. Done — moves task to Review
+agentos sync done "Brief summary of what was accomplished"
+```
+
+If the CLI is not installed, you can still call the API directly (see [references/api.md](references/api.md)) using `AGENTOS_ACCESS_TOKEN` and `AGENTOS_PROJECT_ID` from env. Do not ask the user for task ID or project ID in chat; create the task via the API or CLI.
 
 ## Chunk Types
 

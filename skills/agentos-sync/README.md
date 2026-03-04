@@ -5,10 +5,11 @@ Stream execution logs and output from Codex, Cursor, Claude, or OpenClaw to Agen
 ## Prerequisites
 
 - An AgentOS instance (default: `http://localhost:4000`)
-- **AGENTOS_ACCESS_TOKEN** — from Settings → API Keys → Copy access token (refreshes session; no expired tokens)
-- **AGENTOS_PROJECT_ID** — from Settings → API Keys → Copy project ID (open the app board first to set it)
+- **Auth:** Either use the **AgentOS CLI** (recommended) or set env vars:
+  - **CLI:** Run `agentos auth set` and enter access token + project ID from Settings → API Keys. Stored in `~/.agentos/config.json`; skills get access when they run `agentos sync` commands.
+  - **Env:** Set **AGENTOS_ACCESS_TOKEN** and **AGENTOS_PROJECT_ID** in your environment (from Settings → API Keys).
 
-**No chat prompts:** Set both in your environment. The skill creates tasks automatically and streams to the execution console. No task ID or project ID needed in chat.
+**No chat prompts:** The skill creates tasks automatically and streams to the execution console. No task ID or project ID needed in chat.
 
 ---
 
@@ -156,15 +157,25 @@ The project UUID where tasks are created. External agents create new tasks in th
 
 ## Configuration
 
-Set these environment variables. No chat prompts—the skill creates tasks and streams automatically.
+**Option 1 — AgentOS CLI (recommended)**  
+Install the CLI from this repo (`packages/cli`) and run once:
+
+```bash
+npx @agentos/cli auth set
+# or from repo: node packages/cli/src/agentos.js auth set
+```
+
+Credentials are saved to `~/.agentos/config.json`. The skill uses them when it runs `agentos sync start`, `agentos sync chunk`, and `agentos sync done`.
+
+**Option 2 — Environment variables**
 
 | Variable               | Description                    | Default                 |
 | ---------------------- | ------------------------------ | ----------------------- |
-| `AGENTOS_ACCESS_TOKEN` | Your AgentOS JWT               | Required                |
-| `AGENTOS_PROJECT_ID`  | Project UUID for new tasks     | Required                |
+| `AGENTOS_ACCESS_TOKEN` | Your AgentOS JWT               | Required (or use CLI)   |
+| `AGENTOS_PROJECT_ID`  | Project UUID for new tasks     | Required (or use CLI)   |
 | `AGENTOS_API_URL`      | AgentOS API base URL           | `http://localhost:4000` |
 
-**Codex / Cursor / Claude:** Add to shell profile or `.env`:
+**Codex / Cursor / Claude:** Add to shell profile or `.env`, or use `agentos auth set`:
 
 ```bash
 export AGENTOS_ACCESS_TOKEN="your-token-here"
@@ -172,7 +183,7 @@ export AGENTOS_PROJECT_ID="your-project-uuid"
 export AGENTOS_API_URL="http://localhost:4000"
 ```
 
-**OpenClaw:** Use `${AGENTOS_ACCESS_TOKEN}` and `${AGENTOS_PROJECT_ID}` in config; set env vars before starting.
+**OpenClaw:** Use `${AGENTOS_ACCESS_TOKEN}` and `${AGENTOS_PROJECT_ID}` in config; set env vars before starting or use the CLI config.
 
 ---
 
