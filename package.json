@@ -3,12 +3,17 @@
   "private": true,
   "version": "0.1.0",
   "workspaces": [
-    "apps/*"
+    "apps/*",
+    "packages/*"
   ],
   "scripts": {
     "dev:web": "npm --workspace @agentos/web run dev",
     "dev:api": "npm --workspace @agentos/api run dev",
     "build": "npm run -ws build",
-    "lint": "npm run -ws lint"
+    "lint": "npm run -ws lint",
+    "cli": "node packages/cli/dist/agentos.js"
+  },
+  "dependencies": {
+    "@agentos/cli": "^0.1.0"
   }
 }

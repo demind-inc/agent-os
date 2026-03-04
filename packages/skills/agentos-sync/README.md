@@ -5,10 +5,9 @@ Stream execution logs and output from Codex, Cursor, Claude, or OpenClaw to Agen
 ## Prerequisites
 
 - An AgentOS instance (default: `http://localhost:4000`)
-- **AGENTOS_ACCESS_TOKEN** — from Settings → API Keys → Copy access token (refreshes session; no expired tokens)
-- **AGENTOS_PROJECT_ID** — from Settings → API Keys → Copy project ID (open the app board first to set it)
+- **Auth:** Set **AGENTOS_API_KEY** in your environment (from Settings → API Keys → Create API key; each key is scoped to one project). The skill calls the AgentOS API directly—it does not use the CLI.
 
-**No chat prompts:** Set both in your environment. The skill creates tasks automatically and streams to the execution console. No task ID or project ID needed in chat.
+**No chat prompts:** The skill creates tasks automatically and streams to the execution console. No task ID or project ID needed—the API key is scoped to a project on the server.
 
 ---
 
@@ -115,8 +114,7 @@ Register the skill in `openclaw.json`:
       "enabled": true,
       "config": {
         "apiUrl": "${AGENTOS_API_URL}",
-        "accessToken": "${AGENTOS_ACCESS_TOKEN}",
-        "projectId": "${AGENTOS_PROJECT_ID}"
+        "apiKey": "${AGENTOS_API_KEY}"
       }
     }
   }
@@ -131,21 +129,13 @@ If OpenClaw supports ClawHub and this skill is published there, you can also use
 
 ---
 
-## Getting Your Credentials
+## Getting Your API Key
 
-### Access Token (`AGENTOS_ACCESS_TOKEN`)
+The API key lets the skill call the AgentOS API directly (no CLI required). Each key is scoped to one project (chosen when you create the key).
 
-The access token is your AgentOS session JWT. You need it to authenticate API calls from external agents.
+**From Settings:** Settings → API Keys → **AgentOS API key (CLI & skills)** → choose a project and click **Create API key**. Copy the key immediately—it is shown only once.
 
-**From Settings:** Settings → API Keys → External Sync → **Copy access token**. The button refreshes your session first and only copies a valid, non-expired token. If your session is expired, log in again.
-
-### Project ID (`AGENTOS_PROJECT_ID`)
-
-The project UUID where tasks are created. External agents create new tasks in this project.
-
-**From Settings:** Open the app board first (so the project is set), then Settings → API Keys → External Sync → **Copy project ID**.
-
-**Security:** Treat the token like a password. It expires when your session ends. Do not commit it to git or share it.
+**Security:** Treat the API key like a password. Do not commit it to git or share it. You can revoke keys from Settings at any time.
 
 ### API URL (`AGENTOS_API_URL`)
 
@@ -156,33 +146,30 @@ The project UUID where tasks are created. External agents create new tasks in th
 
 ## Configuration
 
-Set these environment variables. No chat prompts—the skill creates tasks and streams automatically.
+The skill calls the AgentOS API directly with your API key. No CLI required.
 
-| Variable               | Description                    | Default                 |
-| ---------------------- | ------------------------------ | ----------------------- |
-| `AGENTOS_ACCESS_TOKEN` | Your AgentOS JWT               | Required                |
-| `AGENTOS_PROJECT_ID`  | Project UUID for new tasks     | Required                |
-| `AGENTOS_API_URL`      | AgentOS API base URL           | `http://localhost:4000` |
+| Variable          | Description          | Default                 |
+| ----------------- | -------------------- | ----------------------- |
+| `AGENTOS_API_KEY` | API key from web app | **Required**            |
+| `AGENTOS_API_URL` | AgentOS API base URL | `http://localhost:4000` |
 
-**Codex / Cursor / Claude:** Add to shell profile or `.env`:
+**Codex / Cursor / Claude:** Set in shell profile or `.env`:
 
 ```bash
-export AGENTOS_ACCESS_TOKEN="your-token-here"
-export AGENTOS_PROJECT_ID="your-project-uuid"
+export AGENTOS_API_KEY="ag_your-key-here"
 export AGENTOS_API_URL="http://localhost:4000"
 ```
 
-**OpenClaw:** Use `${AGENTOS_ACCESS_TOKEN}` and `${AGENTOS_PROJECT_ID}` in config; set env vars before starting.
+**OpenClaw:** Set `AGENTOS_API_KEY` (and optionally `AGENTOS_API_URL`) in your config or environment before starting.
 
 ---
 
 ## Usage
 
-1. **Set env vars** (one-time): `AGENTOS_ACCESS_TOKEN` and `AGENTOS_PROJECT_ID` from Settings → API Keys.
-2. In your agent (Codex/Cursor/Claude/OpenClaw), ask to sync with AgentOS **or include `#agentos` in the first prompt**.
-3. The skill creates a task with "AI Working" status and streams all output to the execution console.
-4. When the chat finishes, the agent calls `/runs/:runId/done`, moving the task to **Review**.
-5. Open AgentOS and view the new task to see realtime logs.
+1. **Set API key** (one-time): Create an API key in Settings → API Keys, then set `AGENTOS_API_KEY` in your environment.
+2. In your agent (Codex/Cursor/Claude/OpenClaw), ask to sync with AgentOS.
+3. The skill calls the API directly: it creates a task with "AI Working" status and streams all output to the execution console.
+4. Open AgentOS and view the new task to see realtime logs.
 
 **Realtime streaming:** A task is created automatically when the external agent starts. Open the task in AgentOS to see the stream. Chunks sent before you open the task are buffered and replayed when you connect. When the run completes, the full execution log is saved to the task.
 

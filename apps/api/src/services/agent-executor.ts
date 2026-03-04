@@ -7,13 +7,20 @@
  */
 
 import { Anthropic } from "@anthropic-ai/sdk";
-import type {
-  Message,
-  MessageParam,
-  Tool,
-} from "@anthropic-ai/sdk/resources/messages";
+import { Message, MessageParam } from "@anthropic-ai/sdk/resources";
 import type { StreamChunk } from "../types/stream-chunk.js";
 import { executeGitHubTool, type GitHubToolName } from "./github-tools.js";
+
+/** Tool definition for Messages API (avoids relying on SDK namespace export). */
+type MessageTool = {
+  name: string;
+  description: string;
+  input_schema: {
+    type: "object";
+    properties: Record<string, { type: string; description?: string }>;
+    required?: string[];
+  };
+};
 
 export type StreamLogCallback = (
   level: string,
@@ -51,7 +58,7 @@ function resolveModel(slug: string): string {
   return map[slug] ?? slug;
 }
 
-const BASE_TOOLS: Tool[] = [
+const BASE_TOOLS: MessageTool[] = [
   {
     name: "request_user_input",
     description:
@@ -69,7 +76,7 @@ const BASE_TOOLS: Tool[] = [
   },
 ];
 
-const GITHUB_TOOLS: Tool[] = [
+const GITHUB_TOOLS: MessageTool[] = [
   {
     name: "github_search_repositories",
     description:
@@ -216,16 +223,18 @@ const GITHUB_TOOLS: Tool[] = [
   },
 ];
 
-function getTools(githubAccessToken: string | null): Tool[] {
+function getTools(githubAccessToken: string | null): MessageTool[] {
   return githubAccessToken ? [...BASE_TOOLS, ...GITHUB_TOOLS] : BASE_TOOLS;
 }
 
 function slugifyForBranch(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 50) || "changes";
+  return (
+    text
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 50) || "changes"
+  );
 }
 
 const GITHUB_TOOL_NAMES = new Set<GitHubToolName>([
@@ -281,9 +290,9 @@ function emitTextAsChunks(
     const end = sectionIndices[i + 1] ?? text.length;
     const raw = text.slice(start, end);
     const firstNewline = raw.indexOf("\n");
-    const title = (
-      firstNewline >= 0 ? raw.slice(0, firstNewline) : raw
-    ).replace(/^##\s+/, "").trim();
+    const title = (firstNewline >= 0 ? raw.slice(0, firstNewline) : raw)
+      .replace(/^##\s+/, "")
+      .trim();
     const body = firstNewline >= 0 ? raw.slice(firstNewline + 1) : "";
 
     emit({ type: "section", title });
@@ -394,16 +403,15 @@ Rules:
       max_tokens: 20000,
       system: systemPrompt,
       messages: messages as MessageParam[],
-      tools: tools as Tool[],
+      tools,
     });
     lastResponse = response;
 
-    const contentBlocks = response.content as unknown as Array<{ type: string; [key: string]: unknown }>;
-    const textBlocks = contentBlocks.filter(
-      (b): b is { type: "text"; text: string } => b.type === "text"
+    const textBlocks = response.content.filter(
+      (b: { type: string }) => b.type === "text"
     );
-    const toolUseBlocks = contentBlocks.filter(
-      (b): b is { type: "tool_use"; name: string; id: string; input: unknown } => b.type === "tool_use"
+    const toolUseBlocks = response.content.filter(
+      (b: { type: string }) => b.type === "tool_use"
     );
     const stopReason = (response as { stop_reason?: string }).stop_reason;
 
@@ -459,25 +467,34 @@ Rules:
         const c = msg.content;
         if (!Array.isArray(c)) return false;
         return (c as Array<{ type?: string; name?: string }>).some(
-          (x) => x.type === "tool_use" && x.name === "github_create_pull_request"
+          (x) =>
+            x.type === "tool_use" && x.name === "github_create_pull_request"
         );
       });
 
       if (process.env.NODE_ENV === "development") {
-        const lastText = (response.content as Array<{ type?: string; text?: string }>)
-          ?.filter((b) => b.type === "text")
-          .map((b) => b.text ?? "")
-          .join("")
-          .slice(0, 300) ?? "";
-        console.log("[Agent Debug] Model returned with no tool calls, considering done:", {
-          round,
-          stop_reason: stopReason,
-          toolUseBlocksCount: toolUseBlocks.length,
-          taskMentionsPR,
-          hasCreatedPR,
-          willNudge: taskMentionsPR && !hasCreatedPR && !!githubAccessToken && round < MAX_TOOL_ROUNDS - 1,
-          lastContentPreview: lastText + (lastText.length >= 300 ? "…" : ""),
-        });
+        const lastText =
+          (response.content as Array<{ type?: string; text?: string }>)
+            ?.filter((b) => b.type === "text")
+            .map((b) => b.text ?? "")
+            .join("")
+            .slice(0, 300) ?? "";
+        console.log(
+          "[Agent Debug] Model returned with no tool calls, considering done:",
+          {
+            round,
+            stop_reason: stopReason,
+            toolUseBlocksCount: toolUseBlocks.length,
+            taskMentionsPR,
+            hasCreatedPR,
+            willNudge:
+              taskMentionsPR &&
+              !hasCreatedPR &&
+              !!githubAccessToken &&
+              round < MAX_TOOL_ROUNDS - 1,
+            lastContentPreview: lastText + (lastText.length >= 300 ? "…" : ""),
+          }
+        );
       }
 
       if (
@@ -486,14 +503,19 @@ Rules:
         githubAccessToken &&
         round < MAX_TOOL_ROUNDS - 1
       ) {
-        await onLog("info", "Task mentions PR but no PR created yet; nudging agent to continue.", {
-          source: "runner",
-        });
+        await onLog(
+          "info",
+          "Task mentions PR but no PR created yet; nudging agent to continue.",
+          {
+            source: "runner",
+          }
+        );
         if (options.onStreamChunk) {
           void Promise.resolve(
             options.onStreamChunk({
               type: "text",
-              content: "\n\n_[Task requires a PR; prompting agent to create it…]_",
+              content:
+                "\n\n_[Task requires a PR; prompting agent to create it…]_",
             })
           ).catch(() => {});
         }
@@ -512,8 +534,12 @@ Rules:
 
       // When stop_reason is "end_turn" with no tool calls, pause for user input instead of marking done
       if (stopReason === "end_turn") {
-        const syntheticId = `synthetic-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-        const agentText = (response.content as Array<{ type?: string; text?: string }>)
+        const syntheticId = `synthetic-${Date.now()}-${Math.random()
+          .toString(36)
+          .slice(2)}`;
+        const agentText = (
+          response.content as Array<{ type?: string; text?: string }>
+        )
           ?.filter((b) => b.type === "text")
           .map((b) => b.text ?? "")
           .join("")
@@ -537,12 +563,19 @@ Rules:
         ];
         const prompt = { kind: "user_prompt" as const, message: promptMessage };
 
-        await onLog("info", "Agent stopped with no tool calls; pausing for user input.", {
-          source: "runner",
-          stop_reason: stopReason,
-        });
+        await onLog(
+          "info",
+          "Agent stopped with no tool calls; pausing for user input.",
+          {
+            source: "runner",
+            stop_reason: stopReason,
+          }
+        );
         options.onStreamPrompt?.(prompt);
-        options.onStreamChunk?.({ type: "user_prompt", message: promptMessage });
+        options.onStreamChunk?.({
+          type: "user_prompt",
+          message: promptMessage,
+        });
 
         return {
           paused: true,

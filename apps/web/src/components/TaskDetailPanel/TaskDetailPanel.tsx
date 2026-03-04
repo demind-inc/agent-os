@@ -462,6 +462,29 @@ export function TaskDetailPanel({
                           </div>
                         );
                       }
+                      if (chunk.type === "write_file") {
+                        return (
+                          <div
+                            key={partIdx}
+                            className="taskDetailPanel__consoleEntry taskDetailPanel__consoleAction taskDetailPanel__consoleAction--write"
+                          >
+                            <div className="taskDetailPanel__consoleActionCard">
+                              <div className="taskDetailPanel__consoleActionTitle">
+                                Write file
+                              </div>
+                              <div className="taskDetailPanel__consoleActionPath">
+                                {chunk.path}
+                              </div>
+                              {chunk.content != null &&
+                                chunk.content !== "" && (
+                                  <pre className="taskDetailPanel__consoleActionResult taskDetailPanel__consoleActionResult--code">
+                                    {chunk.content}
+                                  </pre>
+                                )}
+                            </div>
+                          </div>
+                        );
+                      }
                       if (chunk.type === "agent_log") {
                         return (
                           <div

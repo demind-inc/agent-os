@@ -2,11 +2,20 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { apiFetch } from "@/lib/api/client";
-import { createClient } from "@/lib/supabase/client";
 
 export type ProviderApiKeysState = {
   anthropic?: { configured: boolean };
   openai?: { configured: boolean };
+};
+
+type Project = { id: string; name: string };
+type AgentosApiKey = {
+  id: string;
+  key_prefix: string;
+  project_id: string;
+  project_name: string | null;
+  name: string | null;
+  created_at: string;
 };
 
 type ApiKeysTabProps = {
@@ -17,12 +26,18 @@ type ApiKeysTabProps = {
 export function ApiKeysTab({ loading: externalLoading, onLoad }: ApiKeysTabProps) {
   const [loading, setLoading] = useState(true);
   const [configured, setConfigured] = useState<ProviderApiKeysState>({});
-  const [tokenCopied, setTokenCopied] = useState(false);
-  const [projectIdCopied, setProjectIdCopied] = useState(false);
   const [anthropicKey, setAnthropicKey] = useState("");
   const [openaiKey, setOpenaiKey] = useState("");
   const [savingProvider, setSavingProvider] = useState<"anthropic" | "openai" | null>(null);
   const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [agentosKeys, setAgentosKeys] = useState<AgentosApiKey[]>([]);
+  const [agentosKeysLoading, setAgentosKeysLoading] = useState(false);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [createProjectId, setCreateProjectId] = useState("");
+  const [createName, setCreateName] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [newKeyShown, setNewKeyShown] = useState<string | null>(null);
+  const [revokingId, setRevokingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -40,9 +55,43 @@ export function ApiKeysTab({ loading: externalLoading, onLoad }: ApiKeysTabProps
     }
   }, [onLoad]);
 
+  const loadAgentosKeys = useCallback(async () => {
+    setAgentosKeysLoading(true);
+    try {
+      const data = await apiFetch<{ apiKeys: AgentosApiKey[] }>("/user/api-keys");
+      setAgentosKeys(data.apiKeys ?? []);
+    } catch (e) {
+      console.error(e);
+      setAgentosKeys([]);
+    } finally {
+      setAgentosKeysLoading(false);
+    }
+  }, []);
+
+  const loadProjects = useCallback(async () => {
+    const workspaceId =
+      typeof window !== "undefined" ? localStorage.getItem("agentos_workspace_id") : null;
+    if (!workspaceId) return;
+    try {
+      const data = await apiFetch<{ projects?: Project[] }>(
+        `/workspaces/${workspaceId}/projects`
+      );
+      const list = Array.isArray(data) ? data : (data as { projects?: Project[] }).projects ?? [];
+      setProjects(list);
+      if (list.length > 0) setCreateProjectId((prev) => prev || list[0].id);
+    } catch {
+      setProjects([]);
+    }
+  }, []);
+
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    loadAgentosKeys();
+    loadProjects();
+  }, [loadAgentosKeys, loadProjects]);
 
   async function saveProvider(provider: "anthropic" | "openai") {
     const key = provider === "anthropic" ? anthropicKey.trim() : openaiKey.trim();
@@ -168,64 +217,126 @@ export function ApiKeysTab({ loading: externalLoading, onLoad }: ApiKeysTabProps
       </div>
       <div className="settingsPage__divider" />
       <div className="settingsPage__cardSection">
-        <h3 className="settingsPage__cardTitle">External Sync (Codex, Cursor, Claude, OpenClaw)</h3>
+        <h3 className="settingsPage__cardTitle">AgentOS API key (CLI &amp; skills)</h3>
         <p className="settingsPage__fieldHint">
-          Set these in your environment so external agents create tasks and stream to the execution console. No chat
-          prompts needed.
+          Create an API key so the AgentOS CLI and skills (Codex, Cursor, Claude, OpenClaw) can create tasks and stream
+          to the execution console without logging in. Each key is scoped to one project.
         </p>
-        <div className="settingsPage__apiKeyRow" style={{ marginBottom: "0.5rem" }}>
-          <span className="settingsPage__fieldHint" style={{ flex: 1 }}>
-            Access token (AGENTOS_ACCESS_TOKEN)
-          </span>
-          <button
-            type="button"
-            className="settingsPage__btn settingsPage__btn--secondary"
-            onClick={async () => {
-              const supabase = createClient();
-              const { data: { session }, error } = await supabase.auth.refreshSession();
-              const token = session?.access_token;
-              if (error || !token) {
-                setMessage({ type: "err", text: "Session expired. Please log in again." });
-                setTimeout(() => setMessage(null), 4000);
-                return;
-              }
-              if (typeof window !== "undefined") {
-                localStorage.setItem("agentos_access_token", token);
-              }
-              await navigator.clipboard.writeText(token);
-              setTokenCopied(true);
-              setTimeout(() => setTokenCopied(false), 2000);
-            }}
-          >
-            {tokenCopied ? "Copied!" : "Copy access token"}
-          </button>
-        </div>
-        <div className="settingsPage__apiKeyRow">
-          <span className="settingsPage__fieldHint" style={{ flex: 1 }}>
-            Project ID (AGENTOS_PROJECT_ID) — tasks are created in this project
-          </span>
-          <button
-            type="button"
-            className="settingsPage__btn settingsPage__btn--secondary"
-            onClick={async () => {
-              const projectId =
-                typeof window !== "undefined" ? localStorage.getItem("agentos_project_id") : null;
-              if (projectId) {
-                await navigator.clipboard.writeText(projectId);
-                setProjectIdCopied(true);
-                setTimeout(() => setProjectIdCopied(false), 2000);
-              } else {
-                setMessage({ type: "err", text: "Open the app board and select a project first." });
-                setTimeout(() => setMessage(null), 4000);
-              }
-            }}
-          >
-            {projectIdCopied ? "Copied!" : "Copy project ID"}
-          </button>
-        </div>
-        <p className="settingsPage__fieldHint" style={{ marginTop: "0.5rem" }}>
-          Open the app board first so the project is set. Then copy both values and add to your env.
-        </p>
+        {newKeyShown && (
+          <div className="settingsPage__message settingsPage__message--success" style={{ marginBottom: "0.75rem" }}>
+            <strong>Copy your API key now — it won&apos;t be shown again.</strong>
+            <div className="settingsPage__apiKeyRow" style={{ marginTop: "0.5rem" }}>
+              <code style={{ flex: 1, wordBreak: "break-all" }}>{newKeyShown}</code>
+              <button
+                type="button"
+                className="settingsPage__btn settingsPage__btn--primary"
+                onClick={async () => {
+                  await navigator.clipboard.writeText(newKeyShown);
+                  setMessage({ type: "ok", text: "Copied to clipboard." });
+                  setTimeout(() => setMessage(null), 2000);
+                }}
+              >
+                Copy
+              </button>
+            </div>
+            <button
+              type="button"
+              className="settingsPage__btn settingsPage__btn--secondary"
+              style={{ marginTop: "0.5rem" }}
+              onClick={() => setNewKeyShown(null)}
+            >
+              Done
+            </button>
+          </div>
+        )}
+        {!newKeyShown && (
+          <>
+            <div className="settingsPage__apiKeyRow" style={{ marginBottom: "0.5rem" }}>
+              <select
+                className="settingsPage__input"
+                value={createProjectId}
+                onChange={(e) => setCreateProjectId(e.target.value)}
+                aria-label="Project for new API key"
+              >
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="text"
+                className="settingsPage__input"
+                placeholder="Key name (optional)"
+                value={createName}
+                onChange={(e) => setCreateName(e.target.value)}
+                aria-label="API key name"
+              />
+              <button
+                type="button"
+                className="settingsPage__btn settingsPage__btn--primary"
+                disabled={creating || !createProjectId}
+                onClick={async () => {
+                  setCreating(true);
+                  setMessage(null);
+                  try {
+                    const res = await apiFetch<{ apiKey: string }>("/user/api-keys", {
+                      method: "POST",
+                      body: JSON.stringify({
+                        projectId: createProjectId,
+                        name: createName.trim() || undefined,
+                      }),
+                    });
+                    setNewKeyShown(res.apiKey);
+                    setCreateName("");
+                    await loadAgentosKeys();
+                  } catch (err) {
+                    setMessage({
+                      type: "err",
+                      text: err instanceof Error ? err.message : "Failed to create API key.",
+                    });
+                  } finally {
+                    setCreating(false);
+                  }
+                }}
+              >
+                {creating ? "Creating…" : "Create API key"}
+              </button>
+            </div>
+            {agentosKeysLoading ? (
+              <p className="settingsPage__fieldHint">Loading keys…</p>
+            ) : agentosKeys.length > 0 ? (
+              <ul className="settingsPage__list" style={{ marginTop: "0.5rem" }}>
+                {agentosKeys.map((k) => (
+                  <li key={k.id} className="settingsPage__apiKeyRow">
+                    <span className="settingsPage__fieldHint">
+                      <code>{k.key_prefix}…</code>
+                      {k.project_name != null && ` · ${k.project_name}`}
+                      {k.name != null && ` · ${k.name}`}
+                    </span>
+                    <button
+                      type="button"
+                      className="settingsPage__btn settingsPage__btn--secondary"
+                      disabled={revokingId === k.id}
+                      onClick={async () => {
+                        if (!confirm("Revoke this API key? It will stop working immediately.")) return;
+                        setRevokingId(k.id);
+                        try {
+                          await apiFetch(`/user/api-keys/${k.id}`, { method: "DELETE" });
+                          await loadAgentosKeys();
+                        } finally {
+                          setRevokingId(null);
+                        }
+                      }}
+                    >
+                      {revokingId === k.id ? "Revoking…" : "Revoke"}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </>
+        )}
       </div>
     </div>
   );
