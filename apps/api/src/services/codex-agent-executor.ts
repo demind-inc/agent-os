@@ -3,7 +3,7 @@
  * Mirrors agent-executor for Claude; uses OpenAI API with same streaming chunk interface.
  */
 
-import { OpenAI } from "openai";
+import OpenAI from "openai";
 import { Chat } from "openai/resources";
 import type { StreamChunk } from "../types/stream-chunk.js";
 import { executeGitHubTool, type GitHubToolName } from "./github-tools.js";
@@ -492,8 +492,11 @@ Rules:
       contentLength: (content as string).length,
       toolCallsCount: toolCalls.length,
       finish_reason: choice.finish_reason,
-      toolNames: toolCalls.map((tc: { function?: { name?: string } }) => {
-        const fn = tc.function;
+      toolNames: toolCalls.map((tc) => {
+        const fn =
+          "function" in tc
+            ? (tc as { function?: { name?: string } }).function
+            : undefined;
         return fn?.name ?? "?";
       }),
     });
