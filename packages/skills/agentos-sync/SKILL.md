@@ -14,48 +14,47 @@ Stream execution logs and output from this session to AgentOS. A task is created
 
 ## Setup (one-time)
 
-**Option A — AgentOS CLI (recommended)**  
-Install and configure the CLI with the API key issued in the web app:
+Set **AGENTOS_API_KEY** in the environment (shell profile or `.env`). Get the key from AgentOS → Settings → API Keys → Create API key (copy once; it is scoped to a project). Optionally set **AGENTOS_API_URL** (default `http://localhost:4000`).
 
-```bash
-npx @agentos/cli auth set
-# Enter the API key from AgentOS → Settings → API Keys → Create API key (copy the key once; it is scoped to a project)
-```
+If neither is set, tell the user once: "To sync with AgentOS, set AGENTOS_API_KEY (and optionally AGENTOS_API_URL). Get the API key from Settings → API Keys → Create API key in the web app. See the agentos-sync README."
 
-If `agentos` is not installed or not on PATH, either keep using `npx @agentos/cli ...` or install it globally:
-
-```bash
-npm i -g @agentos/cli
-agentos auth set
-```
-
-Credentials are stored in `~/.agentos/config.json`. No OAuth token, project ID, or API URL needed—just the API key. When the user has run `agentos auth set`, the skill has access to AgentOS when it invokes `agentos sync` commands.
-
-**Option B — Environment variable**  
-Set `AGENTOS_API_KEY` in shell or `.env`; the CLI and skill use it if set. Optionally set `AGENTOS_API_URL` (default `http://localhost:4000`).
-
-If neither CLI config nor env is set, tell the user once: "To sync with AgentOS, run `agentos auth set` or set AGENTOS_API_KEY. Get the API key from Settings → API Keys → Create API key in the web app. See the agentos-sync README."
+**Do not invoke the CLI.** This skill calls the AgentOS API directly with the API key. No project ID or task ID needed—the key is scoped to a project on the server.
 
 ## Workflow
 
-Use the **AgentOS CLI** (same binary that manages auth). The CLI reads credentials from env or from `~/.agentos/config.json`:
+Call the **AgentOS API** directly. Base URL: `AGENTOS_API_URL` or `http://localhost:4000`. Auth: `Authorization: Bearer <AGENTOS_API_KEY>`. Full details: [references/api.md](references/api.md).
 
-```bash
-# 1. Start — creates task in AgentOS, saves runId for this session
-agentos sync start "Task title from user prompt"
+**1. Start run (create task)**  
+`POST /runs/external` with JSON body, e.g.:
 
-# 2. Stream chunks throughout execution
-agentos sync chunk '{"type":"section","title":"Planning","content":"Analyzing the request"}'
-agentos sync chunk '{"type":"command","command":"npm test","output":"All passed","status":"done"}'
-agentos sync chunk '{"type":"text","content":"Updated src/app.ts"}'
-agentos sync chunk '{"type":"read_file","path":"src/index.ts","summary":"Entry point"}'
-agentos sync chunk '{"type":"agent_log","level":"info","message":"Step complete"}'
-
-# 3. Done — moves task to Review
-agentos sync done "Brief summary of what was accomplished"
+```json
+{ "source": "cursor", "title": "Task title from user prompt" }
 ```
 
-If the CLI is not installed, you can call the API directly (see [references/api.md](references/api.md)) using `Authorization: Bearer <AGENTOS_API_KEY>`. The API key is scoped to a project on the server; do not ask the user for task ID or project ID in chat.
+Use `source`: `"cursor"` | `"codex"` | `"claude"` | `"openclaw"` as appropriate. Response gives `runId` and `taskId`; store `runId` for this session.
+
+**2. Stream chunks**  
+`POST /runs/<runId>/chunks` with JSON body:
+
+```json
+{ "chunk": { "type": "section", "title": "Planning", "content": "Analyzing the request" } }
+```
+
+Emit chunks as you work. Examples:
+
+- `{ "chunk": { "type": "command", "command": "npm test", "output": "All passed", "status": "done" } }`
+- `{ "chunk": { "type": "text", "content": "Updated src/app.ts" } }`
+- `{ "chunk": { "type": "read_file", "path": "src/index.ts", "summary": "Entry point" } }`
+- `{ "chunk": { "type": "agent_log", "level": "info", "message": "Step complete" } }`
+
+**3. Done**  
+`POST /runs/<runId>/done` with JSON body, e.g.:
+
+```json
+{ "result": "Brief summary of what was accomplished" }
+```
+
+This persists the execution log and moves the task to Review.
 
 ## Chunk Types
 

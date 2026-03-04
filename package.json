@@ -12,5 +12,8 @@
     "build": "npm run -ws build",
     "lint": "npm run -ws lint",
     "cli": "node packages/cli/dist/agentos.js"
+  },
+  "dependencies": {
+    "@agentos/cli": "^0.1.0"
   }
 }

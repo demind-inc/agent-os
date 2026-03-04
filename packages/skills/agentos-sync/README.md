@@ -5,9 +5,7 @@ Stream execution logs and output from Codex, Cursor, Claude, or OpenClaw to Agen
 ## Prerequisites
 
 - An AgentOS instance (default: `http://localhost:4000`)
-- **Auth:** Use an **API key** (no OAuth token). Either:
-  - **CLI:** Run `agentos auth set` and enter the API key from Settings → API Keys → Create API key (each key is scoped to one project). Stored in `~/.agentos/config.json`.
-  - **Env:** Set **AGENTOS_API_KEY** in your environment.
+- **Auth:** Set **AGENTOS_API_KEY** in your environment (from Settings → API Keys → Create API key; each key is scoped to one project). The skill calls the AgentOS API directly—it does not use the CLI.
 
 **No chat prompts:** The skill creates tasks automatically and streams to the execution console. No task ID or project ID needed—the API key is scoped to a project on the server.
 
@@ -133,7 +131,7 @@ If OpenClaw supports ClawHub and this skill is published there, you can also use
 
 ## Getting Your API Key
 
-The API key lets the CLI and skills call the AgentOS API without logging in. Each key is scoped to one project (chosen when you create the key).
+The API key lets the skill call the AgentOS API directly (no CLI required). Each key is scoped to one project (chosen when you create the key).
 
 **From Settings:** Settings → API Keys → **AgentOS API key (CLI & skills)** → choose a project and click **Create API key**. Copy the key immediately—it is shown only once.
 
@@ -148,39 +146,29 @@ The API key lets the CLI and skills call the AgentOS API without logging in. Eac
 
 ## Configuration
 
-**Option 1 — AgentOS CLI (recommended)**  
-Install the CLI from this repo (`packages/cli`) and run once:
+The skill calls the AgentOS API directly with your API key. No CLI required.
 
-```bash
-npx @agentos/cli auth set
-# Enter the API key from Settings → API Keys → Create API key
-```
+| Variable           | Description              | Default                 |
+| ------------------ | ------------------------ | ----------------------- |
+| `AGENTOS_API_KEY`  | API key from web app     | **Required**            |
+| `AGENTOS_API_URL`  | AgentOS API base URL     | `http://localhost:4000` |
 
-The API key is saved to `~/.agentos/config.json`. The skill uses it when it runs `agentos sync start`, `agentos sync chunk`, and `agentos sync done`. No OAuth token or project ID needed.
-
-**Option 2 — Environment variable**
-
-| Variable          | Description              | Default                 |
-| ----------------- | ------------------------ | ----------------------- |
-| `AGENTOS_API_KEY` | API key from web app     | Required (or use CLI)   |
-| `AGENTOS_API_URL`| AgentOS API base URL     | `http://localhost:4000` |
-
-**Codex / Cursor / Claude:** Add to shell profile or `.env`, or use `agentos auth set`:
+**Codex / Cursor / Claude:** Set in shell profile or `.env`:
 
 ```bash
 export AGENTOS_API_KEY="ag_your-key-here"
 export AGENTOS_API_URL="http://localhost:4000"
 ```
 
-**OpenClaw:** Use `AGENTOS_API_KEY` in config; set env var before starting or use the CLI config.
+**OpenClaw:** Set `AGENTOS_API_KEY` (and optionally `AGENTOS_API_URL`) in your config or environment before starting.
 
 ---
 
 ## Usage
 
-1. **Set API key** (one-time): Create an API key in Settings → API Keys, then run `agentos auth set` or set `AGENTOS_API_KEY`.
+1. **Set API key** (one-time): Create an API key in Settings → API Keys, then set `AGENTOS_API_KEY` in your environment.
 2. In your agent (Codex/Cursor/Claude/OpenClaw), ask to sync with AgentOS.
-3. The skill creates a task with "AI Working" status and streams all output to the execution console.
+3. The skill calls the API directly: it creates a task with "AI Working" status and streams all output to the execution console.
 4. Open AgentOS and view the new task to see realtime logs.
 
 **Realtime streaming:** A task is created automatically when the external agent starts. Open the task in AgentOS to see the stream. Chunks sent before you open the task are buffered and replayed when you connect. When the run completes, the full execution log is saved to the task.

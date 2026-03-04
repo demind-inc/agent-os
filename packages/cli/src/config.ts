@@ -42,15 +42,28 @@ export function saveConfig(config: AgentosConfig): void {
 }
 
 /**
+ * Ensure URL has a scheme so fetch() works. Bare hostnames are treated as https.
+ */
+function normalizeApiUrl(url: string): string {
+  const u = url.trim().replace(/\/+$/, "");
+  if (!u) return "https://agent-os-api-nine.vercel.app";
+  if (/^https?:\/\//i.test(u)) return u;
+  return `https://${u}`;
+}
+
+/**
  * Resolve credentials: env vars override config file.
+ * API key is trimmed so .env newlines don't break Bearer auth.
  */
 export function getCredentials(): Credentials {
   const config = loadConfig();
-  const apiKey =
+  const rawKey =
     process.env.AGENTOS_API_KEY ?? process.env.AGENTOS_KEY ?? config?.apiKey;
-  const apiUrl =
+  const apiKey = typeof rawKey === "string" ? rawKey.trim() : undefined;
+  const rawUrl =
     process.env.AGENTOS_API_URL ??
     config?.apiUrl ??
     "https://agent-os-api-nine.vercel.app";
+  const apiUrl = normalizeApiUrl(rawUrl);
   return { apiKey, apiUrl };
 }
