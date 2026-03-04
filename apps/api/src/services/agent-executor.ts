@@ -10,6 +10,17 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { StreamChunk } from "../types/stream-chunk.js";
 import { executeGitHubTool, type GitHubToolName } from "./github-tools.js";
 
+/** Tool definition for Messages API (avoids relying on SDK namespace export). */
+type MessageTool = {
+  name: string;
+  description: string;
+  input_schema: {
+    type: "object";
+    properties: Record<string, { type: string; description?: string }>;
+    required?: string[];
+  };
+};
+
 export type StreamLogCallback = (
   level: string,
   message: string,
@@ -46,7 +57,7 @@ function resolveModel(slug: string): string {
   return map[slug] ?? slug;
 }
 
-const BASE_TOOLS: Anthropic.Tool[] = [
+const BASE_TOOLS: MessageTool[] = [
   {
     name: "request_user_input",
     description:
@@ -64,7 +75,7 @@ const BASE_TOOLS: Anthropic.Tool[] = [
   },
 ];
 
-const GITHUB_TOOLS: Anthropic.Tool[] = [
+const GITHUB_TOOLS: MessageTool[] = [
   {
     name: "github_search_repositories",
     description:
@@ -211,7 +222,7 @@ const GITHUB_TOOLS: Anthropic.Tool[] = [
   },
 ];
 
-function getTools(githubAccessToken: string | null): Anthropic.Tool[] {
+function getTools(githubAccessToken: string | null): MessageTool[] {
   return githubAccessToken ? [...BASE_TOOLS, ...GITHUB_TOOLS] : BASE_TOOLS;
 }
 
@@ -389,7 +400,7 @@ Rules:
       max_tokens: 20000,
       system: systemPrompt,
       messages: messages as Anthropic.MessageParam[],
-      tools: tools as Anthropic.Tool[],
+      tools,
     });
     lastResponse = response;
 
