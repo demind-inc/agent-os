@@ -18,7 +18,8 @@ export interface Credentials {
   apiUrl: string;
 }
 
-const CONFIG_DIR = process.env.AGENTOS_CONFIG_DIR || join(homedir(), ".agentos");
+const CONFIG_DIR =
+  process.env.AGENTOS_CONFIG_DIR || join(homedir(), ".agentos");
 const CONFIG_FILE = join(CONFIG_DIR, "config.json");
 
 export function getConfigPath(): string {
@@ -46,12 +47,10 @@ export function saveConfig(config: AgentosConfig): void {
 export function getCredentials(): Credentials {
   const config = loadConfig();
   const apiKey =
-    process.env.AGENTOS_API_KEY ??
-    process.env.AGENTOS_KEY ??
-    config?.apiKey;
+    process.env.AGENTOS_API_KEY ?? process.env.AGENTOS_KEY ?? config?.apiKey;
   const apiUrl =
     process.env.AGENTOS_API_URL ??
     config?.apiUrl ??
-    "http://localhost:4000";
+    "https://agent-os-api-nine.vercel.app";
   return { apiKey, apiUrl };
 }

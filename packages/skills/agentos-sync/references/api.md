@@ -3,6 +3,7 @@
 Base URL: `AGENTOS_API_URL` or `http://localhost:4000`
 
 Auth: `Authorization: Bearer <api_key_or_jwt>`
+
 - **API key** (recommended for CLI/skills): Issued in Settings → API Keys → Create API key. No OAuth needed; key is scoped to a project.
 - **JWT**: Session token from AgentOS (for backwards compatibility).
 
@@ -13,6 +14,7 @@ Auth: `Authorization: Bearer <api_key_or_jwt>`
 Register an external run and get a runId for streaming. Either link to an existing task or create a new one.
 
 **Request (create new task):**
+
 ```json
 {
   "projectId": "uuid (optional when using API key—project comes from the key)",
@@ -23,6 +25,7 @@ Register an external run and get a runId for streaming. Either link to an existi
 ```
 
 **Request (link to existing task):**
+
 ```json
 {
   "taskId": "uuid",
@@ -34,6 +37,7 @@ Register an external run and get a runId for streaming. Either link to an existi
 When `projectId` is provided, a new task is created with status "AI Working" and title "External sync from {source}" (or custom `title`). The run streams to that task's execution console.
 
 **Response:**
+
 ```json
 {
   "runId": "uuid",
@@ -47,6 +51,7 @@ When `projectId` is provided, a new task is created with status "AI Working" and
 Push a stream chunk. Broadcasts to WebSocket subscribers (AgentOS app).
 
 **Request:**
+
 ```json
 {
   "chunk": {
@@ -72,14 +77,18 @@ Push a stream chunk. Broadcasts to WebSocket subscribers (AgentOS app).
 Signal run completion. Persists execution log and updates task status.
 
 **Request:**
+
 ```json
 {
   "result": "optional summary",
-  "chunks": [ /* optional full chunk array for persistence */ ]
+  "chunks": [
+    /* optional full chunk array for persistence */
+  ]
 }
 ```
 
 **Response:**
+
 ```json
 { "ok": true }
 ```

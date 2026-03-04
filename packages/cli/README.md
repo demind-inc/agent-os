@@ -26,11 +26,11 @@ npx @agentos/cli auth set
 
 Only the **API key** is stored (and optional API URL). It is saved in `~/.agentos/config.json` (or `$AGENTOS_CONFIG_DIR/config.json`). Environment variables override the config file.
 
-| Command | Description |
-|--------|-------------|
-| `agentos auth set` | Set API key (and optional API URL). Prompts for values not given as args or env. |
-| `agentos auth status` | Show whether auth is configured (masked). |
-| `agentos auth env` | Print `export AGENTOS_API_KEY=...` etc. Use: `eval "$(agentos auth env)"` to load into current shell. |
+| Command               | Description                                                                                           |
+| --------------------- | ----------------------------------------------------------------------------------------------------- |
+| `agentos auth set`    | Set API key (and optional API URL). Prompts for values not given as args or env.                      |
+| `agentos auth status` | Show whether auth is configured (masked).                                                             |
+| `agentos auth env`    | Print `export AGENTOS_API_KEY=...` etc. Use: `eval "$(agentos auth env)"` to load into current shell. |
 
 **Getting the API key:** In AgentOS go to **Settings → API Keys → AgentOS API key (CLI & skills)** → choose a project → **Create API key**. Copy the key when shown (it is not shown again). Each key is scoped to one project.
 
@@ -38,11 +38,11 @@ Only the **API key** is stored (and optional API URL). It is saved in `~/.agento
 
 Start a run (creates a task in the project scoped to your API key), stream chunks, then mark done. The CLI reads the API key from env or from the config file, so skills can sync without the user setting env vars.
 
-| Command | Description |
-|--------|-------------|
-| `agentos sync start "Task title"` | Create a task and register the run. Saves `runId` for this session (keyed by shell PID). |
-| `agentos sync chunk '<json>'` | Send one chunk to the current run (e.g. section, command, agent_log, text, read_file, user_prompt). |
-| `agentos sync done "Summary"` | Finish the run and move the task to **Review**. |
+| Command                           | Description                                                                                         |
+| --------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `agentos sync start "Task title"` | Create a task and register the run. Saves `runId` for this session (keyed by shell PID).            |
+| `agentos sync chunk '<json>'`     | Send one chunk to the current run (e.g. section, command, agent_log, text, read_file, user_prompt). |
+| `agentos sync done "Summary"`     | Finish the run and move the task to **Review**.                                                     |
 
 Chunk types match the API: `text`, `section`, `command`, `read_file`, `user_prompt`, `agent_log`. See the skill’s [references/api.md](../skills/agentos-sync/references/api.md).
 
