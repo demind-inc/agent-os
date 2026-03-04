@@ -1,6 +1,7 @@
 /**
- * AgentOS CLI config: read/write credentials so skills can use them.
+ * AgentOS CLI config: read/write API key so skills can use it.
  * Config file: AGENTOS_CONFIG_DIR/config.json (default ~/.agentos/config.json)
+ * Only the API key is stored; project is scoped to the key on the server.
  */
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "fs";
@@ -8,14 +9,12 @@ import { join } from "path";
 import { homedir } from "os";
 
 export interface AgentosConfig {
-  accessToken?: string;
-  projectId?: string;
+  apiKey?: string;
   apiUrl?: string;
 }
 
 export interface Credentials {
-  token: string | undefined;
-  projectId: string | undefined;
+  apiKey: string | undefined;
   apiUrl: string;
 }
 
@@ -46,14 +45,13 @@ export function saveConfig(config: AgentosConfig): void {
  */
 export function getCredentials(): Credentials {
   const config = loadConfig();
-  const token =
-    process.env.AGENTOS_ACCESS_TOKEN ??
-    process.env.AGENTOS_TOKEN ??
-    config?.accessToken;
-  const projectId = process.env.AGENTOS_PROJECT_ID ?? config?.projectId;
+  const apiKey =
+    process.env.AGENTOS_API_KEY ??
+    process.env.AGENTOS_KEY ??
+    config?.apiKey;
   const apiUrl =
     process.env.AGENTOS_API_URL ??
     config?.apiUrl ??
     "http://localhost:4000";
-  return { token, projectId, apiUrl };
+  return { apiKey, apiUrl };
 }

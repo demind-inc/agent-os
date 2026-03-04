@@ -2,7 +2,9 @@
 
 Base URL: `AGENTOS_API_URL` or `http://localhost:4000`
 
-Auth: `Authorization: Bearer <access_token>` (user JWT from AgentOS)
+Auth: `Authorization: Bearer <api_key_or_jwt>`
+- **API key** (recommended for CLI/skills): Issued in Settings → API Keys → Create API key. No OAuth needed; key is scoped to a project.
+- **JWT**: Session token from AgentOS (for backwards compatibility).
 
 ## Endpoints
 
@@ -13,8 +15,8 @@ Register an external run and get a runId for streaming. Either link to an existi
 **Request (create new task):**
 ```json
 {
-  "projectId": "uuid",
-  "source": "codex" | "claude" | "openclaw",
+  "projectId": "uuid (optional when using API key—project comes from the key)",
+  "source": "codex" | "claude" | "cursor" | "openclaw",
   "title": "optional task title",
   "agentId": "uuid (optional)"
 }
@@ -24,7 +26,7 @@ Register an external run and get a runId for streaming. Either link to an existi
 ```json
 {
   "taskId": "uuid",
-  "source": "codex" | "claude" | "openclaw",
+  "source": "codex" | "claude" | "cursor" | "openclaw",
   "agentId": "uuid (optional)"
 }
 ```
@@ -85,29 +87,29 @@ Signal run completion. Persists execution log and updates task status.
 ## Example Flow
 
 ```bash
-# 1. Create task and register (uses projectId from AGENTOS_PROJECT_ID)
+# 1. Create task and register (with API key, omit projectId—it comes from the key)
 curl -X POST "$API_URL/runs/external" \
-  -H "Authorization: Bearer $TOKEN" \
+  -H "Authorization: Bearer $AGENTOS_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"projectId":"<project-uuid>","source":"codex"}'
+  -d '{"source":"codex","title":"My task"}'
 # -> { "runId": "...", "taskId": "...", "status": "running" }
 # Task is created with "AI Working" status; open it in AgentOS to see the stream
 
 # 2. Emit a log
 curl -X POST "$API_URL/runs/$RUN_ID/chunks" \
-  -H "Authorization: Bearer $TOKEN" \
+  -H "Authorization: Bearer $AGENTOS_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"chunk":{"type":"agent_log","level":"info","message":"Starting analysis"}}'
 
 # 3. Emit a command
 curl -X POST "$API_URL/runs/$RUN_ID/chunks" \
-  -H "Authorization: Bearer $TOKEN" \
+  -H "Authorization: Bearer $AGENTOS_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"chunk":{"type":"command","command":"npm test","output":"...","status":"done"}}'
 
 # 4. Done
 curl -X POST "$API_URL/runs/$RUN_ID/done" \
-  -H "Authorization: Bearer $TOKEN" \
+  -H "Authorization: Bearer $AGENTOS_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"result":"Analysis complete"}'
 ```

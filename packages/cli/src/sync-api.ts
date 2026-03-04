@@ -1,6 +1,7 @@
 /**
  * Sync API: start run, send chunks, done.
- * Uses getCredentials() so env or CLI config is used.
+ * Uses getCredentials() so env or CLI config is used. API key authenticates the user
+ * and is scoped to a project on the server (no projectId in request).
  */
 
 import { getCredentials } from "./config.js";
@@ -13,17 +14,17 @@ async function api(
   path: string,
   body?: unknown
 ): Promise<unknown> {
-  const { token, apiUrl } = getCredentials();
-  if (!token) {
+  const { apiKey, apiUrl } = getCredentials();
+  if (!apiKey) {
     throw new Error(
-      "No AgentOS credentials. Set AGENTOS_ACCESS_TOKEN and AGENTOS_PROJECT_ID, or run: agentos auth set"
+      "No AgentOS API key. Set AGENTOS_API_KEY or run: agentos auth set"
     );
   }
   const url = `${apiUrl.replace(/\/$/, "")}${path}`;
   const opts: RequestInit = {
     method,
     headers: {
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
   };
@@ -45,14 +46,7 @@ interface ExternalRunResponse {
 
 export async function syncStart(args: string[]): Promise<void> {
   const title = args[0] ? args.join(" ") : "External sync";
-  const { projectId } = getCredentials();
-  if (!projectId) {
-    throw new Error(
-      "No AGENTOS_PROJECT_ID. Set it in env or run: agentos auth set"
-    );
-  }
   const data = (await api("POST", "/runs/external", {
-    projectId,
     source: SOURCE,
     title,
   })) as ExternalRunResponse;

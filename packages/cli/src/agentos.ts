@@ -22,15 +22,16 @@ function usage(): void {
   console.log(`
 AgentOS CLI — auth and sync for Codex/Cursor/Claude skills
 
-  agentos auth set              Set API key (access token), project ID, and API URL
+  agentos auth set              Set API key (from Settings → API Keys in the web app)
   agentos auth status           Show whether auth is configured (masked)
-  agentos auth env              Print export statements for current shell (eval "$(agentos auth env)")
+  agentos auth env              Print export AGENTOS_API_KEY=... for current shell
 
   agentos sync start <title>    Start a sync run (creates task in AgentOS)
   agentos sync chunk <json>     Send a chunk to the current run
   agentos sync done [summary]   Finish the run and move task to Review
 
-Credentials: use AGENTOS_ACCESS_TOKEN and AGENTOS_PROJECT_ID in env, or run 'agentos auth set'.
+Credentials: set AGENTOS_API_KEY in env, or run 'agentos auth set' to store the API key.
+The API key is issued in the web app (Settings → API Keys → Create API key). No OAuth token needed.
 Config file: ${getConfigPath()}
 `);
 }
@@ -85,21 +86,18 @@ async function authSet(rest: string[]): Promise<void> {
   const ask = (q: string): Promise<string> =>
     new Promise((res) => rl.question(q, res));
 
-  let accessToken = rest[0] || process.env.AGENTOS_ACCESS_TOKEN;
-  let projectId = rest[1] || process.env.AGENTOS_PROJECT_ID;
-  let apiUrl = rest[2] || process.env.AGENTOS_API_URL;
+  let apiKey = rest[0] || process.env.AGENTOS_API_KEY || process.env.AGENTOS_KEY;
+  let apiUrl = rest[1] || process.env.AGENTOS_API_URL;
 
-  if (!accessToken)
-    accessToken = (
-      await ask("AgentOS access token (from Settings → API Keys): ")
+  if (!apiKey)
+    apiKey = (
+      await ask("AgentOS API key (from Settings → API Keys → Create API key): ")
     ).trim();
-  if (!accessToken) {
-    console.error("Access token is required.");
+  if (!apiKey) {
+    console.error("API key is required.");
     rl.close();
     process.exit(1);
   }
-  if (!projectId)
-    projectId = (await ask("Project ID (from Settings → API Keys): ")).trim();
   if (!apiUrl)
     apiUrl =
       (await ask("API URL [http://localhost:4000]: ")).trim() ||
@@ -107,39 +105,32 @@ async function authSet(rest: string[]): Promise<void> {
 
   rl.close();
 
-  saveConfig({
-    accessToken,
-    projectId: projectId || undefined,
-    apiUrl,
-  });
+  saveConfig({ apiKey, apiUrl });
   console.log("Auth saved to", getConfigPath());
   console.log(
-    "Skills can now use AgentOS when they run 'agentos sync' (credentials are read from this config if env vars are not set)."
+    "Skills can now use AgentOS when they run 'agentos sync' (no OAuth token needed)."
   );
 }
 
 function authStatus(): void {
   const creds = getCredentials();
   const fromConfig = loadConfig();
-  if (!creds.token) {
+  if (!creds.apiKey) {
     console.log("Not configured. Run: agentos auth set");
     process.exit(1);
   }
-  console.log("Configured (token and project ID set).");
+  console.log("Configured (API key set).");
   if (fromConfig) console.log("Source: config file", getConfigPath());
   else console.log("Source: environment variables");
 }
 
 function authEnv(): void {
   const creds = getCredentials();
-  if (!creds.token || !creds.projectId) {
+  if (!creds.apiKey) {
     console.error("Not configured. Run: agentos auth set");
     process.exit(1);
   }
-  console.log(
-    `export AGENTOS_ACCESS_TOKEN="${creds.token.replace(/"/g, '\\"')}"`
-  );
-  console.log(`export AGENTOS_PROJECT_ID="${creds.projectId}"`);
+  console.log(`export AGENTOS_API_KEY="${creds.apiKey.replace(/"/g, '\\"')}"`);
   console.log(`export AGENTOS_API_URL="${creds.apiUrl}"`);
 }
 

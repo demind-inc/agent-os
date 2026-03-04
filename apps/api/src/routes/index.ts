@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { adminSupabase, assertWorkspaceMember, detectSkillsFromDescription, getUserFromBearer } from "../plugins/supabase.js";
+import { adminSupabase, assertWorkspaceMember, detectSkillsFromDescription, getUserFromBearer, hashApiKey } from "../plugins/supabase.js";
+import { randomBytes } from "crypto";
 import { enqueueRun } from "../services/runner.js";
 import {
   broadcastRunStreamChunk,
@@ -416,6 +417,7 @@ export async function registerRoutes(app: FastifyInstance) {
 
   app.post('/runs/external', async (request, reply) => {
     const user = (request as any).user;
+    const apiKeyProjectId = (user as { apiKeyProjectId?: string }).apiKeyProjectId;
     const body = z
       .object({
         taskId: z.string().uuid().optional(),
@@ -424,9 +426,10 @@ export async function registerRoutes(app: FastifyInstance) {
         agentId: z.string().uuid().optional(),
         title: z.string().optional(),
       })
-      .refine((b) => b.taskId != null || b.projectId != null, {
-        message: 'Either taskId or projectId is required',
-      })
+      .refine(
+        (b) => b.taskId != null || b.projectId != null || apiKeyProjectId != null,
+        { message: 'Either taskId or projectId is required, or use an API key scoped to a project' }
+      )
       .parse(request.body);
 
     let taskId: string;
@@ -443,7 +446,7 @@ export async function registerRoutes(app: FastifyInstance) {
       taskId = task.id;
       await assertWorkspaceMember(user.id, workspaceId);
     } else {
-      const projectId = body.projectId!;
+      const projectId = body.projectId ?? apiKeyProjectId!;
       const { data: project } = await adminSupabase
         .from('projects')
         .select('workspace_id')
@@ -1112,5 +1115,76 @@ export async function registerRoutes(app: FastifyInstance) {
     if (error) return reply.status(400).send({ error: error.message });
     const outValue = body.key === PROVIDER_API_KEYS_KEY ? maskProviderApiKeys(value) : value;
     return { key: body.key, value: outValue };
+  });
+
+  const AGENTOS_KEY_PREFIX = 'ag_';
+  app.post('/user/api-keys', async (request, reply) => {
+    const user = (request as any).user;
+    if ((user as { apiKeyProjectId?: string }).apiKeyProjectId) {
+      return reply.status(403).send({ error: 'Use session auth to create API keys' });
+    }
+    const body = z
+      .object({ projectId: z.string().uuid(), name: z.string().optional() })
+      .parse(request.body);
+    const { data: project } = await adminSupabase
+      .from('projects')
+      .select('workspace_id')
+      .eq('id', body.projectId)
+      .single();
+    if (!project) return reply.status(404).send({ error: 'Project not found' });
+    await assertWorkspaceMember(user.id, project.workspace_id);
+    const rawKey = AGENTOS_KEY_PREFIX + randomBytes(24).toString('hex');
+    const keyHash = hashApiKey(rawKey);
+    const keyPrefix = rawKey.slice(0, 11);
+    const { data: row, error } = await adminSupabase
+      .from('agentos_api_keys')
+      .insert({
+        user_id: user.id,
+        key_hash: keyHash,
+        key_prefix: keyPrefix,
+        project_id: body.projectId,
+        name: body.name ?? null,
+      })
+      .select('id')
+      .single();
+    if (error) return reply.status(400).send({ error: error.message });
+    return { id: row.id, apiKey: rawKey };
+  });
+
+  app.get('/user/api-keys', async (request, reply) => {
+    const user = (request as any).user;
+    if ((user as { apiKeyProjectId?: string }).apiKeyProjectId) {
+      return reply.status(403).send({ error: 'Use session auth to list API keys' });
+    }
+    const { data, error } = await adminSupabase
+      .from('agentos_api_keys')
+      .select('id, key_prefix, project_id, name, created_at, projects(name)')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+    if (error) return reply.status(400).send({ error: error.message });
+    const apiKeys = (data ?? []).map((row: any) => ({
+      id: row.id,
+      key_prefix: row.key_prefix,
+      project_id: row.project_id,
+      project_name: row.projects?.name ?? null,
+      name: row.name,
+      created_at: row.created_at,
+    }));
+    return { apiKeys };
+  });
+
+  app.delete('/user/api-keys/:id', async (request, reply) => {
+    const user = (request as any).user;
+    if ((user as { apiKeyProjectId?: string }).apiKeyProjectId) {
+      return reply.status(403).send({ error: 'Use session auth to revoke API keys' });
+    }
+    const params = request.params as { id: string };
+    const { error } = await adminSupabase
+      .from('agentos_api_keys')
+      .delete()
+      .eq('id', params.id)
+      .eq('user_id', user.id);
+    if (error) return reply.status(400).send({ error: error.message });
+    return { ok: true };
   });
 }

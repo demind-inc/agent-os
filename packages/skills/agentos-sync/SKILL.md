@@ -15,24 +15,19 @@ Stream execution logs and output from this session to AgentOS. A task is created
 ## Setup (one-time)
 
 **Option A — AgentOS CLI (recommended)**  
-Install and configure the CLI so this skill can sync without env vars:
+Install and configure the CLI with the API key issued in the web app:
 
 ```bash
-# From the agentos repo (or after npm link / global install)
 npx @agentos/cli auth set
-# Enter access token and project ID from AgentOS → Settings → API Keys
+# Enter the API key from AgentOS → Settings → API Keys → Create API key (copy the key once; it is scoped to a project)
 ```
 
-Credentials are stored in `~/.agentos/config.json`. When the user has run `agentos auth set`, the skill has access to AgentOS when it invokes `agentos sync` commands.
+Credentials are stored in `~/.agentos/config.json`. No OAuth token, project ID, or API URL needed—just the API key. When the user has run `agentos auth set`, the skill has access to AgentOS when it invokes `agentos sync` commands.
 
-**Option B — Environment variables**  
-Set in shell or `.env`; the CLI and skill use these if set:
+**Option B — Environment variable**  
+Set `AGENTOS_API_KEY` in shell or `.env`; the CLI and skill use it if set. Optionally set `AGENTOS_API_URL` (default `http://localhost:4000`).
 
-1. **AGENTOS_ACCESS_TOKEN** (required): AgentOS JWT from Settings → API Keys → Copy access token.
-2. **AGENTOS_PROJECT_ID** (required): Project UUID from Settings → API Keys → Copy project ID.
-3. **AGENTOS_API_URL** (optional): Default `http://localhost:4000`.
-
-If neither CLI config nor env is set, tell the user once: "To sync with AgentOS, run `agentos auth set` or set AGENTOS_ACCESS_TOKEN and AGENTOS_PROJECT_ID. See the agentos-sync README."
+If neither CLI config nor env is set, tell the user once: "To sync with AgentOS, run `agentos auth set` or set AGENTOS_API_KEY. Get the API key from Settings → API Keys → Create API key in the web app. See the agentos-sync README."
 
 ## Workflow
 
@@ -53,7 +48,7 @@ agentos sync chunk '{"type":"agent_log","level":"info","message":"Step complete"
 agentos sync done "Brief summary of what was accomplished"
 ```
 
-If the CLI is not installed, you can still call the API directly (see [references/api.md](references/api.md)) using `AGENTOS_ACCESS_TOKEN` and `AGENTOS_PROJECT_ID` from env. Do not ask the user for task ID or project ID in chat; create the task via the API or CLI.
+If the CLI is not installed, you can call the API directly (see [references/api.md](references/api.md)) using `Authorization: Bearer <AGENTOS_API_KEY>`. The API key is scoped to a project on the server; do not ask the user for task ID or project ID in chat.
 
 ## Chunk Types
 
@@ -66,7 +61,7 @@ Map your actions to these types:
 - `text` – Plain text: `{ type: "text", content }`
 - `user_prompt` – When you need user input: `{ type: "user_prompt", message }`
 
-## API Base URL
+## API URL
 
 Default: `http://localhost:4000`. Override with `AGENTOS_API_URL` if the user's AgentOS instance is elsewhere.
 
