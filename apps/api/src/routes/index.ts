@@ -844,6 +844,46 @@ export async function registerRoutes(app: FastifyInstance) {
     return reply.status(204).send();
   });
 
+  app.get("/runs/:runId/chunks", async (request, reply) => {
+    const user = (request as any).user;
+    const params = request.params as { runId: string };
+    const cursor = Math.max(
+      0,
+      Number((request.query as { cursor?: string }).cursor) || 0
+    );
+
+    const { data: run } = await adminSupabase
+      .from("agent_runs")
+      .select("id, task_id")
+      .eq("id", params.runId)
+      .single();
+    if (!run) return reply.status(404).send({ error: "Run not found" });
+
+    const { data: task } = await adminSupabase
+      .from("tasks")
+      .select("project_id, projects(workspace_id)")
+      .eq("id", run.task_id)
+      .single();
+    if (!task) return reply.status(404).send({ error: "Task not found" });
+    const workspaceId = (task as any).projects?.workspace_id as string;
+    await assertWorkspaceMember(user.id, workspaceId);
+
+    const { events, nextCursor, done } = getRunStreamBuffer(params.runId, cursor);
+    const chunks: StreamChunk[] = [];
+    for (const evt of events) {
+      if (evt.event !== "chunk") continue;
+      try {
+        const parsed = JSON.parse(evt.data) as StreamChunk;
+        if (parsed && typeof parsed === "object" && "type" in parsed) {
+          chunks.push(parsed);
+        }
+      } catch {
+        // skip malformed chunk
+      }
+    }
+    return { chunks, nextCursor, done };
+  });
+
   app.post("/runs/:runId/done", async (request, reply) => {
     const user = (request as any).user;
     const params = request.params as { runId: string };

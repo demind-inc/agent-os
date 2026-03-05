@@ -550,7 +550,14 @@ export default function AppBoardPage() {
             setActiveTaskId(null);
           }}
           onTaskUpdate={handleTaskUpdate}
-          onInputSubmitted={() => activeTaskId && loadTaskDetails(activeTaskId)}
+          onInputSubmitted={async () => {
+            if (!activeTaskId || !projectId) return;
+            await loadTaskDetails(activeTaskId);
+            const runsData = await apiFetch<{ runs: AgentRun[] }>(
+              `/projects/${projectId}/runs`
+            );
+            setRuns(runsData.runs);
+          }}
           assignedAgentBackend={
             activeTask.assigned_agent_id
               ? agents.find((a) => a.id === activeTask.assigned_agent_id)

@@ -180,6 +180,11 @@ export function TaskDetailPanel({
     setPreviewCopied(false);
   }, [selectedArtifact?.id]);
 
+  // Hide artifact modal when run is awaiting input (artifacts only shown when conversation is finished)
+  useEffect(() => {
+    if (awaitingInputRun) setSelectedArtifact(null);
+  }, [awaitingInputRun]);
+
   async function saveTitle() {
     setEditingTitle(false);
     const trimmed = editTitleValue.trim();
@@ -380,6 +385,13 @@ export function TaskDetailPanel({
                   }
 
                   if (entriesToRender.length > 0) {
+                    // When showing the "Agent needs your input" block, don't also show user_prompt in the log (avoids duplicate message)
+                    const displayEntries =
+                      awaitingInputRun
+                        ? entriesToRender.filter(
+                            (e) => e.chunk.type !== "user_prompt"
+                          )
+                        : entriesToRender;
                     const renderChunk = (
                       chunk: StreamChunk,
                       partIdx: number
@@ -531,7 +543,7 @@ export function TaskDetailPanel({
                       body: StreamChunk[];
                       timestamp: string;
                     } | null = null;
-                    for (const { chunk, timestamp } of entriesToRender) {
+                    for (const { chunk, timestamp } of displayEntries) {
                       if (chunk.type === "section") {
                         current = { section: chunk, body: [], timestamp };
                         grouped.push(current);
@@ -889,34 +901,36 @@ export function TaskDetailPanel({
               </div>
             </div>
           )}
-          <div className="taskDetailPanel__section">
-            <h4>Artifacts ({artifacts.length})</h4>
-            <div className="column">
-              {artifacts.length === 0 ? (
-                <p style={{ color: "var(--text-muted)", fontSize: 13 }}>
-                  No artifacts yet.
-                </p>
-              ) : (
-                artifacts.map((artifact) => (
-                  <button
-                    key={artifact.id}
-                    type="button"
-                    className="taskDetailPanel__artifactItem"
-                    onClick={() => setSelectedArtifact(artifact)}
-                  >
-                    <div>
-                      <strong>{artifact.type}</strong> — {artifact.title}
-                    </div>
-                    {artifact.url && (
-                      <span className="taskDetailPanel__artifactItemUrl">
-                        {artifact.url}
-                      </span>
-                    )}
-                  </button>
-                ))
-              )}
+          {!awaitingInputRun && (
+            <div className="taskDetailPanel__section">
+              <h4>Artifacts ({artifacts.length})</h4>
+              <div className="column">
+                {artifacts.length === 0 ? (
+                  <p style={{ color: "var(--text-muted)", fontSize: 13 }}>
+                    No artifacts yet.
+                  </p>
+                ) : (
+                  artifacts.map((artifact) => (
+                    <button
+                      key={artifact.id}
+                      type="button"
+                      className="taskDetailPanel__artifactItem"
+                      onClick={() => setSelectedArtifact(artifact)}
+                    >
+                      <div>
+                        <strong>{artifact.type}</strong> — {artifact.title}
+                      </div>
+                      {artifact.url && (
+                        <span className="taskDetailPanel__artifactItemUrl">
+                          {artifact.url}
+                        </span>
+                      )}
+                    </button>
+                  ))
+                )}
+              </div>
             </div>
-          </div>
+          )}
         </div>
         <div className="taskDetailPanel__footer">
           {apiKeyError && (
